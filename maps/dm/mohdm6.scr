@@ -3,7 +3,7 @@
 // SCRIPTING: POWZER
 
 // **********************************************************************
-// Extended-Gametype Mapscript Version 1.0 (06-02-04)
+// Extended-Gametype Mapscript Version 1.1.3 (11-15-04)
 // By Mark Follett (Mefy)
 // email: mef123@geocities.com
 // web: www.planetmedalofhonor.com/mefy
@@ -25,37 +25,30 @@ setcvar "g_scoreboardpic" "mohdm6"
 
 	level.mef_mapname = "mohdm6"
 	level.mef_maptype = "dm"
-	level.mef_supportedgametypes = "ffa"::"tdm"::"rbm"::"ft"::"ctf"::"vd"
+	level.mef_supportedgametypes = "ffa"::"tdm"::"rbm"::"ft"::"ctf"::"ftctf"::"dem"::"ftdem"
 	level.mef_defaultgametype = "ft"
 
 	switch (waitthread global/libmef/util.scr::get_gametype)
 	{
 		case "ctf":
+		case "ftctf":
 			waitthread setup_randomized_ctf_bases
 			thread global/libmef/ctf.scr::ctf_begin
 			break
 
 		case "ft":
-			if (int(getcvar "g_ctf_lastbase") == 1)
-			{
-				local.alliedregion = 1
-				setcvar "g_ctf_lastbase" "0"
-			} else
-			{
-				local.alliedregion = 2
-				setcvar "g_ctf_lastbase" "1"
-			}
-
-			thread global/libmef/spawn.scr::spawnblock_thread local.alliedregion
+			waitthread global/libmef/spawn.scr::spawnblock_begin
 			thread global/libmef/ft.scr::ft_begin
 			break
 
-		case "vd":
-			waitthread setup_vd_bases
-			thread global/libmef/vd.scr::vd_begin
+		case "dem":
+		case "ftdem":
+			waitthread setup_dem_bases
+			thread global/libmef/dem.scr::dem_begin
 			break
 
 		case "rbm":
+			waitthread global/libmef/spawn.scr::spawnblock_begin
 			thread roundbasedthread
 			break
 	}
@@ -70,7 +63,6 @@ setcvar "g_scoreboardpic" "mohdm6"
 	exec global/ambient.scr mohdm6
 	
 	level waittill spawn
-	$world farclipoverride -1
 
 end
 
@@ -94,28 +86,56 @@ roundbasedthread:
 end
 
 
-setup_vd_bases:
+setup_dem_bases:
+	level.mef_settings["ticktime"] = 60
+
+	if (level.mef_gametype == "dem")
+	{
+		level.mef_settings["respawn"] = 1
+	}
+
+	waitthread global/libmef/util.scr::read_gametype_settings
+
+	if (level.mef_gametype == "ftdem" || !level.mef_settings["respawn"])
+	{
+		waitthread global/libmef/spawn.scr::spawnblock_begin
+
+		if (level.mef_alliedspawnregion == "se")
+		{
+			local.seteam = "allies"
+			local.nwteam = "axis"
+		} else
+		{
+			local.seteam = "axis"
+			local.nwteam = "allies"
+		}
+	} else
+	{
+		local.seteam = "both"
+		local.nwteam = "both"
+	}
+	
 //      -- Base Locations --
-//                                                  Team   Coordinates          Angle Description
-//                                                  ====== ==================== ===== ===========================================
-	waitthread global/libmef/bases.scr::addbase both   " -898  904  496.13    -90 South Bldg Top Level"
-	waitthread global/libmef/bases.scr::addbase both   "-1164 -872  272.13     45 South Bldg Staircase"
-	waitthread global/libmef/bases.scr::addbase both   " -959  904  256.13    -90 South Bldg Bottom Level"
-	waitthread global/libmef/bases.scr::addbase both   "  379  447  408.13     90 West Bldg Mid Stairs"
-	waitthread global/libmef/bases.scr::addbase both   " -108 -624   32.13     90 East Bldg Bottom Level"
-	waitthread global/libmef/bases.scr::addbase both   " -103 -624  272.13     90 East Bldg Top Level"
-	waitthread global/libmef/bases.scr::addbase both   "  -39  840   32.13    -90 West Bldg First Floor South Side"
-	waitthread global/libmef/bases.scr::addbase both   "  752  467   32.13   -180 West Bldg First Floor North Side Balcony"
-	waitthread global/libmef/bases.scr::addbase both   "  -82  865  272.13    -90 West Bldg Second Floor South Side"
-	waitthread global/libmef/bases.scr::addbase both   "  752  468  272.13   -180 West Bldg Second Floor North Side Balcony"
-	waitthread global/libmef/bases.scr::addbase both   " -224  585  512.13      0 West Bldg Third Floor South Side"
-	waitthread global/libmef/bases.scr::addbase both   "  928  557  512.13    180 West Bldg Third Floor North Side"
-	waitthread global/libmef/bases.scr::addbase both   "  339  563 -151.88     90 West Bldg Staircase Bottom"
-	waitthread global/libmef/bases.scr::addbase both   "  673  160 -151.88    -90 Boiler Room"
-	waitthread global/libmef/bases.scr::addbase both   "  223 -129   32.13      0 Locker Room"
-	waitthread global/libmef/bases.scr::addbase both   " 1259 -363  304.13    145 North-East Roof Corner"
-	waitthread global/libmef/bases.scr::addbase both   "  176 -240 -115.00    145 Courtyard North Side"
-	waitthread global/libmef/bases.scr::addbase both   " -784  148 -145.22      0 Courtyard South Side"
+//                                                  Team         Coordinates          Angle Description
+//                                                  ======       ==================== ===== ===========================================
+	waitthread global/libmef/bases.scr::addbase local.seteam " -898  904  496.13    -90 South Bldg Top Level"
+	waitthread global/libmef/bases.scr::addbase local.seteam "-1164 -872  272.13     45 South Bldg Staircase"
+	waitthread global/libmef/bases.scr::addbase local.seteam " -959  904  256.13    -90 South Bldg Bottom Level"
+	waitthread global/libmef/bases.scr::addbase local.nwteam "  379  447  408.13     90 West Bldg Mid Stairs"
+	waitthread global/libmef/bases.scr::addbase local.seteam " -108 -624   32.13     90 East Bldg Bottom Level"
+	waitthread global/libmef/bases.scr::addbase local.seteam " -103 -624  272.13     90 East Bldg Top Level"
+	waitthread global/libmef/bases.scr::addbase local.nwteam "  -39  840   32.13    -90 West Bldg First Floor South Side"
+	waitthread global/libmef/bases.scr::addbase local.nwteam "  752  467   32.13   -180 West Bldg First Floor North Side Balcony"
+	waitthread global/libmef/bases.scr::addbase local.nwteam "  -82  865  272.13    -90 West Bldg Second Floor South Side"
+	waitthread global/libmef/bases.scr::addbase local.nwteam "  752  468  272.13   -180 West Bldg Second Floor North Side Balcony"
+	waitthread global/libmef/bases.scr::addbase local.nwteam " -224  585  512.13      0 West Bldg Third Floor South Side"
+	waitthread global/libmef/bases.scr::addbase local.nwteam "  928  557  512.13    180 West Bldg Third Floor North Side"
+	waitthread global/libmef/bases.scr::addbase local.nwteam "  339  563 -151.88     90 West Bldg Staircase Bottom"
+	waitthread global/libmef/bases.scr::addbase both         "  673  160 -151.88    -90 Boiler Room"
+	waitthread global/libmef/bases.scr::addbase both         "  223 -129   32.13      0 Locker Room"
+	waitthread global/libmef/bases.scr::addbase both         " 1259 -363  304.13    145 North-East Roof Corner"
+	waitthread global/libmef/bases.scr::addbase both         "  176 -240 -115.00    145 Courtyard North Side"
+	waitthread global/libmef/bases.scr::addbase both         " -784  148 -145.22      0 Courtyard South Side"
 end
 
 

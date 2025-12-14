@@ -3,7 +3,7 @@
 // SCRIPTING: NED
 
 // **********************************************************************
-// Extended-Gametype Mapscript Version 1.0 (06-02-04)
+// Extended-Gametype Mapscript Version 1.1.2 (11-15-04)
 // By Mark Follett (Mefy)
 // email: mef123@geocities.com
 // web: www.planetmedalofhonor.com/mefy
@@ -25,36 +25,21 @@ setcvar "g_scoreboardpic" "mohdm2"
 
 	level.mef_mapname = "mohdm2"
 	level.mef_maptype = "dm"
-	level.mef_supportedgametypes = "ffa"::"tdm"::"rbm"::"ft"::"ctf"
+	level.mef_supportedgametypes = "ffa"::"tdm"::"rbm"::"ft"::"ctf"::"ftctf"::"dem"::"ftdem"
 	level.mef_defaultgametype = "ft"
 
 	switch (waitthread global/libmef/util.scr::get_gametype)
 	{
 		case "ctf":
-			// **********three axis-allied base pairs to select from **************
-			local.alliedbases[0] = "-3320 -2449 -22.94 60" // southeast sector
-			local.axisbases[0]   = "296 864 18.11 180" // northwest sector
-
-			local.alliedbases[1] = "-1895 -1978 0.13 180" // east sector
-			local.axisbases[1]   = "-1036 1320 28.47 -90" // west sector
-
-			local.alliedbases[2] = "-901 -3440 76.09 90" // northeast sector
-			local.axisbases[2]   = "-3091 806 24.09 -60" // southwest sector
-			// ********************************************************************
-
-			local.lastbase = (int(getcvar "g_ctf_lastbase"))
-			local.nextbase = local.lastbase
-			while (local.nextbase == local.lastbase)
-			{
-				local.nextbase = randomint(local.alliedbases.size)
-			}
-
-			setcvar "g_ctf_lastbase" local.nextbase
-
-			level.ctf_settings["alliedbase"] = local.alliedbases[local.nextbase]
-			level.ctf_settings["axisbase"] = local.axisbases[local.nextbase]
-
+		case "ftctf":
+			waitthread setup_bases
 			thread global/libmef/ctf.scr::ctf_begin
+			break
+		
+		case "dem":
+		case "ftdem":
+			waitthread setup_bases
+			thread global/libmef/dem.scr::dem_begin
 			break
 
 		case "ft":
@@ -76,7 +61,6 @@ setcvar "g_scoreboardpic" "mohdm2"
 	exec global/ambient.scr mohdm2
 	
 	level waittill spawn
-	$world farclipoverride -1
 
 	//add in our kill brush under the cheat point.
 	local.killbrush = spawn trigger_hurt
@@ -103,4 +87,27 @@ roundbasedthread:
 
 	level waittill roundstart
 
+end
+
+
+setup_bases:
+	// common bases for dem and ctf
+	waitthread global/libmef/bases.scr::addbasepair "-2162 -2584 -123.02 20 Allied Halftrack" "-1278 1038 13.08 155 88mm Flak Cannon" m3 flak88
+	waitthread global/libmef/bases.scr::addbasepair "-754.96 -2688.59 -45.18 60 Sherman Tank" "-2684.66 639.32 37.35 -114 Panzer Tank" shermantank panzer ( 7 60 358 ) ( 0 246 2 )
+	waitthread global/libmef/bases.scr::addbasepair "-1428 -3408 -17.32 0 East Bldg Ammo Crate" "-2629 1765 216.13 0 Barn Ammo Crate" indycrate indycrate
+	waitthread global/libmef/bases.scr::addbasepair "-3163.42 -1963.39 -68.49 70 GMC Truck" "506.45 -284.35 -57.75 -116 Opel Truck" gmctruck opeltruck ( 0 70 3 ) ( 3 244 358 )
+	waitthread global/libmef/bases.scr::addbasepair "-2386 -1936 8.12 -40 Center Bldg HQ" "-569 207 40.12 60 Church HQ" cardtable cardtable
+
+	// additional bases for ctf only
+	if (level.mef_gametype == "ctf" || level.mef_gametype == "ftctf")
+	{
+		// southeast/northwest
+		waitthread global/libmef/bases.scr::addbasepair "-3320 -2449 -22.94 60" "296 864 18.11 180"
+
+		// east/west
+		waitthread global/libmef/bases.scr::addbasepair "-1895 -1978 0.13 180" "-1036 1320 28.47 -90"
+
+		// northeast/southwest
+		waitthread global/libmef/bases.scr::addbasepair "-901 -3440 76.09 90" "-3091 806 24.09 -60"
+	}		
 end

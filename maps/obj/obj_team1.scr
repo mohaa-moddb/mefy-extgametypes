@@ -3,7 +3,7 @@
 // SCRIPTING: NED and lots of help from ZIED
 
 // **********************************************************************
-// Extended-Gametype Mapscript Version 1.0 (06-02-04)
+// Extended-Gametype Mapscript Version 1.1.1 (11-15-04)
 // By Mark Follett (Mefy)
 // email: mef123@geocities.com
 // web: www.planetmedalofhonor.com/mefy
@@ -23,38 +23,21 @@ main:
 
 	level.mef_mapname = "obj_team1"
 	level.mef_maptype = "obj"
-	level.mef_supportedgametypes = "ffa"::"tdm"::"rbm"::"obj"::"ft"::"ctf"::"ftobj"
+	level.mef_supportedgametypes = "ffa"::"tdm"::"rbm"::"obj"::"ft"::"ctf"::"ftobj"::"ftctf"::"dem"::"ftdem"
 	level.mef_defaultgametype = "ftobj"
 
 	switch (waitthread global/libmef/util.scr::get_gametype)
 	{
 		case "ctf":
-			// **********three axis-allied base pairs to select from **************
-			// North / South
-			local.alliedbases[0] = "1553 3872 -231.75 0"
-			local.axisbases[0]   = "3692 1031 -343.76 85" // center
-
-			// Northwest / Southeast Diagonal
-			local.alliedbases[1] = "1792 3359 -240.90 180"
-			local.axisbases[1]   = "4767 1376 -347.88 -90" // near bushes
-
-			// Northeast / Southwest Diagonal
-			local.alliedbases[2] = "2150 4885 -207 -90"
-			local.axisbases[2] = "2814 557 -341.87 100" // tree
-			// ********************************************************************
-
-			local.lastbase = (int(getcvar "g_ctf_lastbase"))
-			local.nextbase = local.lastbase
-			while (local.nextbase == local.lastbase)
-			{
-				local.nextbase = randomint(local.alliedbases.size)
-			}
-
-			setcvar "g_ctf_lastbase" local.nextbase
-
-			level.ctf_settings["alliedbase"] = local.alliedbases[local.nextbase]
-			level.ctf_settings["axisbase"] = local.axisbases[local.nextbase]
+		case "ftctf":
+			waitthread setup_bases
 			thread global/libmef/ctf.scr::ctf_begin
+			break
+
+		case "dem":
+		case "ftdem":
+			waitthread setup_bases
+			thread global/libmef/dem.scr::dem_begin
 			break
 
 		case "ft":
@@ -94,7 +77,6 @@ main:
 	exec global/ambient.scr obj_team1
 
 	level waittill spawn
-	$world farclipoverride -1
 end
 
 
@@ -116,6 +98,37 @@ roundbasedthread:
 end
 
 
+setup_bases:
+	waitthread global/libmef/util.scr::read_gametype_settings
+
+	// bases for dem, ftdem, ftctf, and non-respawning ctf
+	if (!(level.mef_gametype == "ctf" && level.mef_settings["respawn"]))
+	{
+		waitthread global/libmef/bases.scr::addbase allies "1497 4631 -228.06 -66 Sherman Tank" shermantank
+		waitthread global/libmef/bases.scr::addbase allies "2492 4123 -210.97 -90 Allied Cardtable" cardtable
+		waitthread global/libmef/bases.scr::addbase allies "2410 4630 -215.45 -180 Allied Tent" tent
+		waitthread global/libmef/bases.scr::addbase allies "1919 3729 -252.48 -40 Allied Halftrack" m3
+		waitthread global/libmef/bases.scr::addbase axis "1312 -1568 -352 -90 88mm Flak Cannon" flak88
+		waitthread global/libmef/bases.scr::addbase axis "3788 -800 -312 -90 88mm Flak Cannon" flak88
+		waitthread global/libmef/bases.scr::addbase axis "2700 -1440 -376 -90 88mm Flak Cannon" flak88
+		waitthread global/libmef/bases.scr::addbase axis "4084 352 -304 -90 88mm Flak Cannon" flak88
+	}
+
+	// additional bases for ctf only
+	if (level.mef_gametype == "ctf" || level.mef_gametype == "ftctf")
+	{
+		// north/south
+		waitthread global/libmef/bases.scr::addbasepair "1553 3872 -231.75 0" "3692 1031 -343.76 85"
+
+		// northwest/southeast
+		waitthread global/libmef/bases.scr::addbasepair "1792 3359 -240.90 180" "4767 1376 -347.88 -90"
+
+		// northeast/southwest
+		waitthread global/libmef/bases.scr::addbasepair "2150 4885 -207 -90" "2814 557 -341.87 100"
+	}		
+end
+
+
 objectivethread:
 	setcvar "g_obj_alliedtext1" "- Find and destroy" 
 	setcvar "g_obj_alliedtext2" "the Flak 88 cannon"
@@ -124,6 +137,8 @@ objectivethread:
 	setcvar "g_obj_axistext1" "- Defend the Flak 88"
 	setcvar "g_obj_axistext2" "cannon"
 	setcvar "g_obj_axistext3" " "
+
+	level.mef_dontremoveturrets = 1
 
 	//////////////////////////
 	level waittill prespawn
@@ -136,6 +151,7 @@ objectivethread:
 	level.defusing_team = "axis"
 	level.planting_team = "allies"
 	level.targets_to_destroy = 1
+	level.targets_destroyed = 0
 
 	// set the parameters for this round based match
 	if (level.mef_gametype != "ftobj")
@@ -144,8 +160,6 @@ objectivethread:
 	}
 	level.dmroundlimit = 5 // round time limit in minutes
 	level.clockside = axis // set to axis, allies, kills, or draw
-
-	level.ft_dontremoveturrets = 1
 
 	//////////////////////////
 	if (!level.mef_devmode)

@@ -1,8 +1,8 @@
 /*
 ================================================================================
 Utility Library
-for Medal Of Honor: Allied Assault
-Version 1.2 (06/02/04)
+for Medal Of Honor
+Version 1.3.3 (11/15/04)
 
 Copyright (c) 2003-2004 Mark Follett
 email: mef123@geocities.com
@@ -32,8 +32,36 @@ init_util_lib:
 	level.mef_devmode = bool (getcvar "g_mef_devmode")
 	waitthread get_version_info
 	waitthread check_new_map
-	thread hud_thread
+	thread global/libmef/hud.scr::hud_thread
+	
+	level.mef_settings[0] = NIL
+	level.ctf_settings = level.mef_settings
+	level.ft_settings = level.mef_settings
+	level.dem_settings = level.mef_settings
+	
+	level.mef_allies = waitthread init_teamdata "allies"
+	level.mef_axis = waitthread init_teamdata "axis"
+	level.mef_allies.otherteam = level.mef_axis
+	level.mef_axis.otherteam = level.mef_allies
+	level.mef_team["allies"] = level.mef_allies
+	level.mef_team["axis"] = level.mef_axis
 end
+
+
+init_teamdata local.team:
+	local.ent = local createListener
+	local.ent.name = local.team
+	local.ent.numplayers = 0
+	local.ent.totplayers = 0
+	
+	if (local.team == "allies")
+	{
+		local.ent.desc = "Allied"
+	} else
+	{
+		local.ent.desc = "Axis"
+	}
+end local.ent
 
 
 get_version_info:
@@ -48,11 +76,6 @@ get_version_info:
 	level.mef_gameversion = local.verinfo[1]
 	level.mef_versionnum = local.verinfo[2]
 	level.mef_baseversion = local.verinfo[3]
-
-	for (local.i = 0; local.i < local.gameversions.size; local.i++)
-	{
-		level.mef_versettings[local.gameversions[local.i][1]] = local createListener
-	}
 end
 
 
@@ -93,53 +116,41 @@ get_gametype:
 
 	local.gametypes["ctf"] = "Capture-The-Flag"::1
 	local.gametypes["ft"] = "Freeze-Tag"::1
-	local.gametypes["vd"] = "Voodoo-Dolls"::1
+	local.gametypes["dem"] = "Demolition"::1
 	local.gametypes["ftobj"] = "Freeze-Tag-Objective"::1
+	local.gametypes["ftctf"] = "Freeze-Tag-CTF"::1
+	local.gametypes["ftdem"] = "Freeze-Tag-Demolition"::1
+	local.gametypes["fttow"] = "Freeze-Tag-TOW"::1
 
-
-	local.gtype = getcvar "g_extgametype"
-	if (!(waitthread is_valid_gametype local.gtype))
-	{
-		local.gtype = getcvar ("g_extgametype_" + level.mef_mapname)
-	}
-
-	if (!(waitthread is_valid_gametype local.gtype))
-	{
-		local.gtypenum = int(getcvar "g_gametype")
-
-		if ((level.mef_maptype == "dm" && local.gtypenum == 3) || \
-		    (level.mef_maptype == "obj" && (local.gtypenum == 3 || local.gtypenum == 4)))
-		{
-			local.gtype = level.mef_defaultgametype
-		}
-	}
-
-	if (!(waitthread is_valid_gametype local.gtype))
+	if (bool (getcvar "g_mef_disable"))
 	{
 		local.gtype = "none"
-	}
-
-	local.gametype = local.gametypes[local.gtype]
-	if (local.gametype != NIL)
+	} else
 	{
-		if (local.gametype[2])
+		local.gtype = getcvar "g_extgametype"
+		if (!(waitthread is_valid_gametype local.gtype))
 		{
-			// check to see if the extended gametype is enabled
-			level.mef_settings[0] = NIL
-			level.mef_settingsprefix = local.gtype
+			local.gtype = getcvar ("g_extgametype_" + level.mef_mapname)
+		}
 
-			if (!(waitthread check_game_enabled))
+		if (!(waitthread is_valid_gametype local.gtype))
+		{
+			local.gtypenum = int(getcvar "g_gametype")
+
+			if (local.gtypenum == 3 || local.gtypenum == 4 || local.gtypenum == 5)
 			{
-				local.gtype = "none"
-				if (level.mef_maptype == "dm")
-				{
-					setcvar "g_gametype" "3"
-				} else
-				{
-					setcvar "g_gametype" "4"
-				}
+				local.gtype = level.mef_defaultgametype
 			}
-		} else
+		}
+		
+		if (!(waitthread is_valid_gametype local.gtype))
+		{
+			local.gtype = "none"
+		}
+
+		// if this is a built-in gametype, then set g_gametype to the appropriate value
+		local.gametype = local.gametypes[local.gtype]
+		if (local.gametype != NIL && !local.gametype[2])
 		{
 			setcvar "g_gametype" local.gametype[3]
 		}
@@ -162,18 +173,48 @@ get_gametype:
 	}
 
 	level.mef_gametype = local.gtype
+	
+	thread global/libmef/respawn.scr::respawncontrol_thread
 end local.gtype
 
 
 is_valid_gametype local.gtype:
-	for (local.i = 1; local.i < (level.mef_supportedgametypes.size + 1); local.i++)
+end (waitthread is_in_array level.mef_supportedgametypes local.gtype 1)
+
+
+read_gametype_settings:
+	if (level.mef_readgamesettings)
 	{
-		if (local.gtype == level.mef_supportedgametypes[local.i])
-		{
-			end 1
-		}
+		end
 	}
-end 0
+	
+	level.mef_readgamesettings = 1
+
+	switch (level.mef_gametype)
+	{
+		case "ft":
+		case "ftobj":
+		case "fttow":
+			waitthread global/libmef/ft.scr::read_game_settings
+			break
+			
+		case "ctf":
+		case "ftctf":
+			waitthread global/libmef/ctf.scr::read_game_settings
+			break
+			
+		case "dem":
+		case "ftdem":
+			waitthread global/libmef/dem.scr::read_game_settings
+			break
+	}
+
+	if (!((level.mef_gametype == "dem" && level.mef_settings["respawn"]) ||
+	    (level.mef_gametype == "ctf" && level.mef_settings["respawn"])))
+	{
+		level.mef_deepbases = 1
+	}
+end
 
 
 parse_game_version local.gameversions local.verstring:
@@ -298,11 +339,11 @@ end (local.keys::local.keylist)
 
 // Game Settings
 
-read_setting local.name local.type local.mapdefval local.defaultval:
-	local.gencvarname = ("g_" + level.mef_settingsprefix + "_" + local.name)
+read_setting local.settings local.name local.type local.mapdefval local.defaultval:
+	local.gencvarname = ("g_" + level.mef_gametype + "_" + local.name)
 
 	local.gencvarval = getcvar local.gencvarname
-	local.scrval = level.mef_settings[local.name]
+	local.scrval = local.settings[local.name]
 
 	if (local.mapdefval != NIL)
 	{
@@ -318,34 +359,27 @@ read_setting local.name local.type local.mapdefval local.defaultval:
 		local.cvarval = local.defaultval
 	}
 
-	level.mef_settings[local.name] = local.cvarval
+	local.settings[local.name] = local.cvarval
 end
 
 
 // name::type::default value
-read_game_settings local.settingsdef:
-	local.mapcvarname = ("g_" + level.mef_settingsprefix + "_" + level.mef_mapname + "_settings")
+read_game_settings local.settings local.settingsdef:
+	local.mapcvarname = ("g_" + level.mef_gametype + "_" + level.mef_mapname + "_settings")
 	local.mapvals = (waitthread parse_options (getcvar local.mapcvarname))[1]
 
 	for (local.i = 0; local.i < local.settingsdef.size; local.i++)
 	{
 		local.setting = local.settingsdef[local.i]
-		waitthread read_setting local.setting[1] local.setting[2] local.mapvals[local.setting[1]] local.setting[3]
+		waitthread read_setting local.settings local.setting[1] local.setting[2] local.mapvals[local.setting[1]] local.setting[3]
 	}
 	
-	local.currentcvarname = ("g_" + level.mef_settingsprefix + "_currentsettings")
-	setcvar local.currentcvarname (waitthread dump_game_settings local.settingsdef)
+	local.currentcvarname = ("g_" + level.mef_gametype + "_currentsettings")
+	setcvar local.currentcvarname (waitthread dump_game_settings local.settings local.settingsdef)
 end
 
 
-check_game_enabled:
-	local.mapcvarname = ("g_" + level.mef_settingsprefix + "_" + level.mef_mapname + "_settings")
-	local.mapvals = (waitthread parse_options (getcvar local.mapcvarname))[1]
-	waitthread read_setting "disable" bool local.mapvals["disable"] 0
-end (!level.mef_settings["disable"])
-
-
-dump_game_settings local.settingsdef:
+dump_game_settings local.settings local.settingsdef:
 	local.str = ""
 	
 	for (local.i = 0; local.i < local.settingsdef.size; local.i++)
@@ -356,7 +390,7 @@ dump_game_settings local.settingsdef:
 		{
 			local.str += " "
 		}
-		local.str += (local.setting[1] + ": " + level.mef_settings[local.setting[1]])
+		local.str += (local.setting[1] + ": " + local.settings[local.setting[1]])
 	}
 end local.str
 
@@ -420,15 +454,30 @@ read_position_string local.str:
 		local.poslist[local.poslist.size] = local.strlist[local.i]
 	}
 	
-	local.ent = local createListener
+	local.ent = spawn script_origin
 	local.ent.origin = ( (float(local.strlist[0])) (float(local.strlist[1])) (float(local.strlist[2]) ) )
 	local.ent.angles = ( 0 (float(local.strlist[3])) 0 )
 	local.ent.desc = waitthread join_string local.poslist " "
+	
+	if (local.ent.desc == "")
+	{
+		local.ent.desc = waitthread global/libmef/mapdesc.scr::get_player_position local.ent.origin
+	}
 end local.ent
 
 
-is_in_array local.array local.item:
-	for (local.i = 0; local.i < local.array.size; local.i++)
+is_in_array local.array local.item local.static:
+	if (local.static)
+	{
+		local.startidx = 1
+		local.s = local.array.size + 1
+	} else
+	{
+		local.startidx = 0
+		local.s = local.array.size
+	}
+
+	for (local.i = local.startidx; local.i < local.s; local.i++)
 	{
 		if (local.array[local.i] == local.item)
 		{
@@ -436,6 +485,62 @@ is_in_array local.array local.item:
 		}
 	}
 end 0
+
+
+append_arrays local.a1 local.a2:
+	for (local.i = 0; local.i < local.a2.size; local.i++)
+	{
+		local.a1[local.a1.size] = local.a2[local.i]
+	}
+end
+
+
+// entity broadcasting
+auto_broadcast_ents local.delay:
+	level.mef_broadcastents[0] = NIL
+	
+	while (1)
+	{
+		if (level.mef_broadcastents.size > 0)
+		{
+			local.ent = level.mef_broadcastents[0]
+			if (local.ent != NULL && !local.ent.dontbroadcast)
+			{
+				local.ent svflags "+broadcast"
+			}
+
+			local.newents = NIL
+			local.newents[0] = NIL
+			for (local.i = 1; local.i < level.mef_broadcastents.size; local.i++)
+			{
+				local.newents[local.newents.size] = level.mef_broadcastents[local.i]
+			}
+
+			level.mef_broadcastents = local.newents
+		}
+
+		wait local.delay
+	}
+end
+
+
+player_can_see local.player local.obj local.dist:
+	local.eye = (local.player gettagposition "eyes bone")
+	local.eyedir = (angles_toforward local.player.viewangles)
+	local.dir = local.obj.origin - (local.eye - (local.eyedir * 30))
+	local.dp = vector_dot (vector_normalize local.dir) (vector_normalize local.eyedir)
+
+	if ((vector_length (local.obj.origin - (trace (local.player.origin + ( 0 0 60 )) local.obj.origin 1))) > 3.0)
+	{
+		end 0
+	}
+
+	if (((vector_length local.dir) - 30) > local.dist ||
+	    local.dp < 0.5)
+	{
+		end 0
+	}
+end 1
 
 
 // Round Based Scoring System
@@ -450,7 +555,7 @@ begin_round_based_game local.resetthread local.teamwinthread:
 	level.mef_score["allies"] = 0
 	level.mef_score["axis"] = 0
 
-	waitthread register_hud_item 1 setup_score_display update_score_display
+	waitthread global/libmef/hud.scr::register_hud_item 1 global/libmef/util.scr::setup_score_display global/libmef/util.scr::update_score_display
 
 	if (level.mef_rbdata.resetthread)
 	{
@@ -458,7 +563,24 @@ begin_round_based_game local.resetthread local.teamwinthread:
 	}
 
 	waitthread turn_off_clock
-	thread check_time
+
+	if (level.mef_settings["suddendeath"] > 0)
+	{
+		local.sdmins = level.mef_settings["suddendeath"]
+	} else
+	{
+		local.sdmins = 0
+	}
+
+	if (level.mef_settings["fsuddendeath"] > 0)
+	{
+		local.fsdmins = level.mef_settings["fsuddendeath"]
+	} else
+	{
+		local.fsdmins = 0
+	}
+
+	thread check_time local.sdmins local.fsdmins
 end
 
 
@@ -478,110 +600,93 @@ turn_on_clock local.clockside:
 end
 
 
-check_time:
+check_time local.sdmins local.fsdmins:
 	local.starttime = level.time
 
-	while (1)
+	if (local.sdmins == 0 && local.fsdmins > 0)
 	{
-		wait 1
-		local.elapsedtime = level.time - local.starttime
-
-		if (local.elapsedtime >= ((level.dmroundlimit * 60) - 2) && !level.mef_scoring["allies"] && !level.mef_scoring["axis"] && !level.mef_gameover)
-		{
-			level.mef_timeexpired = 1
-
-			if (waitthread check_win allies)
-			{
-				waitthread do_teamwin allies
-			} else if (waitthread check_win axis)
-			{
-				waitthread do_teamwin axis
-			} else if (level.mef_settings["suddendeath"] > 0)
-			{
-				thread sudden_death level.mef_settings["suddendeath"]
-			} else if (level.mef_settings["fsuddendeath"] > 0)
-			{
-				thread final_sudden_death level.mef_settings["fsuddendeath"]
-			} else
-			{
-				waitthread do_teamwin draw
-			}
-			end
-		}
-	}
-end
-
-
-sudden_death local.mins:
-	level.mef_suddendeath = 1
-	iprintlnbold_noloc (local.mins + " Minute Sudden Death: Next score wins the round.")
-	level.mef_updatehud = 1
-
-	local.endtime = level.time + (local.mins * 60)
-	while (1)
-	{
-		wait 1
-		if (level.time >= local.endtime && !level.mef_scoring["allies"] && !level.mef_scoring["axis"] && !level.mef_gameover)
-		{
-			if (waitthread check_win allies)
-			{
-				waitthread do_teamwin allies
-			} else if (waitthread check_win axis)
-			{
-				waitthread do_teamwin axis
-			} else if (level.mef_settings["fsuddendeath"] > 0)
-			{
-				thread final_sudden_death level.mef_settings["fsuddendeath"]
-			} else
-			{
-				waitthread do_teamwin draw
-			}
-			end
-		}
-	}
-end
-
-
-final_sudden_death local.mins:
-	level.mef_suddendeath = 1
-	iprintlnbold_noloc (local.mins + " Minute Final Sudden Death: Respawning disabled.")
-	level.mef_updatehud = 1
-
-	level.dmrespawning = 0
-	if (level.mef_basegametype == 4)
-	{
-		thread check_players_dead 5
+		local.fsuddendeath = 1
 	}
 
-	local.endtime = level.time + (local.mins * 60)
-	while (1)
-	{
-		wait 1
-		if (level.time >= local.endtime && !level.mef_scoring["allies"] && !level.mef_scoring["axis"] && !level.mef_gameover)
-		{
-			if (waitthread check_win allies)
-			{
-				waitthread do_teamwin allies
-			} else if (waitthread check_win axis)
-			{
-				waitthread do_teamwin axis
-			} else
-			{
-				waitthread do_teamwin draw
-			}
-			end
-		}
-	}
-end
-
-
-check_players_dead local.delay:
 	while (!level.mef_gameover)
 	{
-		setcvar "g_gametype" "3"
-		waitframe
-		setcvar "g_gametype" "4"
-		wait local.delay
+		local.elapsedtime = level.time - local.starttime
+
+		if (local.elapsedtime >= ((level.dmroundlimit * 60) - 1) && !level.mef_scoring["allies"] && !level.mef_scoring["axis"])
+		{
+			if (level.mef_score["allies"] == level.mef_score["axis"])
+			{
+				if ((local.sdmins + local.fsdmins) > 0)
+				{
+					thread sudden_death local.sdmins local.fsdmins
+				} else
+				{
+					waitthread do_teamwin draw
+				}
+			} else if (level.mef_score["allies"] > level.mef_score["axis"])
+			{
+				waitthread do_teamwin allies
+			} else
+			{
+				waitthread do_teamwin axis
+			}
+			end
+		} else if (local.fsuddendeath && !local.announcefsd && local.elapsedtime >= ((level.dmroundlimit * 60) - 20))
+		{
+			local.announcefsd = 1
+			iprintlnbold_noloc "Warning: Respawning ends in 20 seconds."
+		}
+
+		wait 1
+	}
+end
+
+
+sudden_death local.sdmins local.fsdmins:
+	local.totalmins = local.sdmins + local.fsdmins
+
+	level.mef_suddendeath = 1
+	
+	if (local.sdmins > 0)
+	{
+		iprintlnbold_noloc (local.sdmins + " Minute Sudden Death: Next score wins the round.")
+	}
+	level.mef_updatehud = 1
+
+	local.endtime = level.time + (local.totalmins * 60)
+	local.fsdtime = level.time + (local.sdmins * 60)
+	
+	if (!level.mef_dmrespawning || local.fsdmins > 0)
+	{
+		local.autonuke = 1
+	}
+	
+	while (!level.mef_gameover)
+	{
+		if (level.time >= local.endtime)
+		{
+			level.mef_timeexpired = 1
+			if (local.autonuke)
+			{
+				level.mef_autonuke = 1
+			}
+			end
+		} else if (local.fsdmins > 0 && !level.mef_fsuddendeath && level.time >= local.fsdtime)
+		{
+			level.mef_fsuddendeath = 1			
+			iprintlnbold_noloc (local.fsdmins + " Minute Final Sudden Death: Respawning disabled.")
+			waitthread global/libmef/respawn.scr::disable_respawn
+		} else if (local.fsdmins > 0 && !level.mef_fsuddendeath && !local.announcefsd && level.time >= (local.fsdtime - 20))
+		{
+			local.announcefsd = 1
+			iprintlnbold_noloc "Warning: Respawning ends in 20 seconds."
+		} else if (local.autonuke && !local.announcenuke && level.time >= (local.endtime - 20))
+		{
+			local.announcenuke = 1
+			thread global/libmef/respawn.scr::teamnuke_thread 20
+		}
+
+		wait 1
 	}
 end
 
@@ -593,7 +698,6 @@ team_scored local.team:
 	}
 
 	level.mef_score[local.team]++
-	level.mef_scoring[local.team] = NIL
 	level.mef_updatehud = 1
 
 	local.otherteam = waitthread get_other_team local.team
@@ -603,6 +707,8 @@ team_scored local.team:
 		waitthread do_teamwin local.team
 		end 1
 	}
+
+	level.mef_scoring[local.team] = NIL
 
 	if (local.team == "allies")
 	{
@@ -633,7 +739,7 @@ end
 check_win_later local.team:
 	local.otherteam = waitthread get_other_team local.team
 
-	while (level.mef_scoring[local.otherteam])
+	while (level.mef_scoring[local.otherteam] && !level.mef_suddendeath)
 	{
 		waitframe
 	}
@@ -649,8 +755,8 @@ check_win local.team:
 	local.otherteam = waitthread get_other_team local.team
 
 	if ((level.mef_score[local.team] > level.mef_score[local.otherteam]) && \
-	    (level.mef_timeexpired == 1 || \
-	    (level.mef_settings["pointlimit"] > 0) && (level.mef_score[local.team] >= level.mef_settings["pointlimit"])))
+	    (level.mef_suddendeath || \
+	    ((level.mef_settings["pointlimit"] > 0) && (level.mef_score[local.team] >= level.mef_settings["pointlimit"]))))
 	{
 		end 1
 	}
@@ -658,15 +764,15 @@ end 0
 
 
 get_other_team local.team:
-	if (local.team == "both")
-	{
-		end "both"
-	} else if (local.team == "allies")
+	if (local.team == "allies")
 	{
 		end "axis"
-	} else
+	} else if (local.team == "axis")
 	{
 		end "allies"
+	} else
+	{
+		end "both"
 	}
 end
 
@@ -702,6 +808,12 @@ end
 			
 		
 do_teamwin local.team:
+	if (level.mef_basegametype == NIL)
+	{
+		teamwin local.team
+		end
+	}
+
 	level.mef_gameover = 1
 
 	waitthread display_credits level.mef_credits
@@ -711,24 +823,109 @@ do_teamwin local.team:
 		waitthread level.mef_rbdata.teamwinthread local.team
 	}
 
-	if (level.mef_basegametype != 4)
+	if (local.team == "allies" || local.team == "axis")
+	{
+		waitthread teamwin_wrapper local.team
+	} else
+	{
+		waitthread force_draw
+	}
+
+	thread hide_hud_delay
+end
+
+
+teamwin_wrapper local.team:
+	if (level.mef_basegametype != 4 || level.mef_basegametype != 5 || level.mef_basegametype != 6)
 	{
 		setcvar "g_gametype" "4"  // Objective Match
 	}
 
-	if (local.team == "allies" || local.team == "axis")
-	{
-		teamwin local.team
-	} else
-	{
-		// draw
-		local.manager = spawn DM_Manager
-		local.manager doroundtransition
-	}
+	teamwin local.team
 
 	setcvar "g_gametype" level.mef_basegametype
-	wait 2
+end
 
+
+force_draw:
+	if (level.mef_baseversion == "bt")
+	{
+		waitthread teamwin_wrapper none
+		end
+	}
+
+	level.clockside = "draw"
+	level.bombs_planted = 0
+	level.bomb_set = 0
+	level.targets_to_destroy = 1
+	level.targets_destroyed = 0
+	if (level.mef_gametype == "fttow")
+	{
+		level commanddelay 0 ignoreclock 0
+	}
+
+	if (level.mef_elapsedtime < ((level.dmroundlimit * 60) - 1))
+	{
+		if (level.mef_elapsedtime < 62)
+		{
+			// kill all players
+			level.mef_disablespectating = 1
+			waitframe
+			waitframe
+			
+			level.dmrespawning = 0
+			waitthread global/libmef/respawn.scr::disable_respawn
+
+			for (local.i = 1; local.i < ($player.size + 1); local.i++)
+			{
+				local.player = $player[local.i]
+				if (local.player != NIL && local.player != NULL)
+				{
+					local.player takedamage
+					local.player hurt 1000
+				}
+			}
+		} else
+		{
+			// temp set roundlimit to 1
+			local.roundlimit = int (getcvar "roundlimit")
+			setcvar "roundlimit" "1"
+			waitframe
+			setcvar "roundlimit" local.roundlimit
+		}
+	} else
+	{
+		// wait for the clock to expire so the hud turns off at the precise time
+		local.waittime = (level.dmroundlimit * 60) - level.mef_elapsedtime
+		if (local.waittime > 0)
+		{
+			wait local.waittime
+		}
+	}
+	
+	thread force_draw_failsafe
+end
+
+
+force_draw_failsafe:
+	wait 8
+	
+	// failsafe to force the draw if the other methods didnt work
+	local.manager = spawn DM_Manager
+	local.manager doroundtransition
+end
+
+
+hide_hud_delay:
+	wait 1.75
+	
+	if (level.mef_settings["observe_builtin"])
+	{
+		level.mef_disablespectating = 1
+	}
+
+	wait 0.25
+	
 	// turn off the center message
 	thread global/message_print.scr::message ""
 	huddraw_alpha 26 0
@@ -757,6 +954,14 @@ display_credits local.credits:
 	setcvar "g_obj_axistext1"   local.credits[3]
 	setcvar "g_obj_axistext2"   local.credits[4]
 	setcvar "g_obj_axistext3"   local.credits[5]
+	
+	if (level.mef_basegametype == 5)
+	{
+		setcvar "g_obj_alliedtext4" ""
+		setcvar "g_obj_alliedtext5" ""
+		setcvar "g_obj_axistext4" ""
+		setcvar "g_obj_axistext5" ""
+	}
 end
 
 
@@ -784,119 +989,4 @@ update_score_display:
 	}
 
 	huddraw_string self.idx local.str
-end
-
-
-
-// HUD Updating
-
-register_hud_item local.numids local.setupthread local.updatethread local.hidethread:
-	local.ent = spawn Listener
-	local.ent.idx = level.mef_nexthudid
-	local.ent.numids = local.numids
-	local.ent.setupthread = local.setupthread
-	local.ent.updatethread = local.updatethread
-	local.ent.hidethread = local.hidethread
-
-	level.mef_huditems[level.mef_huditems.size] = local.ent
-	level.mef_nexthudid += local.numids
-	level.mef_setuphud = 1
-	level.mef_updatehudall = 1
-end local.ent
-
-
-hide_hud_item:
-	for (local.i = self.idx; local.i < (self.idx + self.numids); local.i++)
-	{
-		huddraw_alpha local.i 0.0
-	}
-end
-
-
-hud_thread:
-	level.mef_huditems[0] = NIL
-	level.mef_nexthudid = 50
-	local.maxhuditems = 10
-
-	level waittill prespawn
-	level waittill spawn
-	
-	wait 1
-
-	for (local.i = level.mef_nexthudid; local.i < (level.mef_nexthudid + local.maxhuditems); local.i++)
-	{
-		huddraw_alpha local.i 0
-	}
-
-	// turn off the center message from a previous round
-	huddraw_alpha 26 0
-	huddraw_alpha 27 0
-
-	thread check_new_players 3
-
-	while (1)
-	{
-		if (level.mef_setuphud)
-		{
-			for (local.i = 0; local.i < level.mef_huditems.size; local.i++)
-			{
-				local.huditem = level.mef_huditems[local.i]
-				local.huditem waitthread local.huditem.setupthread
-			}
-			level.mef_setuphud = 0
-		}
-		if (level.mef_updatehud || level.mef_updatehudall)
-		{
-			for (local.i = 0; local.i < level.mef_huditems.size; local.i++)
-			{
-				local.huditem = level.mef_huditems[local.i]
-				local.huditem waitthread local.huditem.updatethread
-				local.huditem.keys = NIL
-			}
-			level.mef_updatehud = 0
-			level.mef_updatehudall = 0
-		}
-		if (level.mef_hidehud)
-		{
-			for (local.i = 0; local.i < level.mef_huditems.size; local.i++)
-			{
-				local.huditem = level.mef_huditems[local.i]
-				if (local.huditem.hidethread != NIL)
-				{
-					local.huditem waitthread local.huditem.hidethread
-				} else
-				{
-					local.huditem waitthread hide_hud_item
-				}
-			}
-			level.mef_hidehud = 0
-		}
-		waitframe
-	}
-end
-
-
-check_new_players local.freq:
-	while (1)
-	{
-		local.setuphud = 0
-		for (local.i = 1; local.i < ($player.size + 1); local.i++)
-		{
-			local.player = $player[local.i]
-			if (local.player != NIL && local.player != NULL && local.player.mef_joinedgame == NIL)
-			{
-				local.player.mef_joinedgame = 1
-				local.setuphud = 1
-			}
-		}
-
-		if (local.setuphud)
-		{
-			wait 1
-			level.mef_setuphud = 1
-			level.mef_updatehudall = 1
-		}
-
-		wait local.freq
-	}
 end

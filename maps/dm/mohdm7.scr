@@ -3,7 +3,7 @@
 // SCRIPTING: POWZER
 
 // **********************************************************************
-// Extended-Gametype Mapscript Version 1.0 (06-02-04)
+// Extended-Gametype Mapscript Version 1.1.1 (11-15-04)
 // By Mark Follett (Mefy)
 // email: mef123@geocities.com
 // web: www.planetmedalofhonor.com/mefy
@@ -25,46 +25,32 @@ setcvar "g_scoreboardpic" "mohdm7"
 
 	level.mef_mapname = "mohdm7"
 	level.mef_maptype = "dm"
-	level.mef_supportedgametypes = "ffa"::"tdm"::"rbm"::"ft"::"ctf"
+	level.mef_supportedgametypes = "ffa"::"tdm"::"rbm"::"ft"::"ctf"::"ftctf"::"dem"::"ftdem"
 	level.mef_defaultgametype = "ft"
 
 	switch (waitthread global/libmef/util.scr::get_gametype)
 	{
 		case "ctf":
-		        // Swap the base positions each round
-			if (int(getcvar "g_ctf_lastbase") == 1)
-			{
-				level.ctf_settings["alliedbase"] = "-3144 2749 64.13 0"
-				level.ctf_settings["axisbase"] = "1240 -96 -59.88 180"
-				local.alliedregion = 2
-				setcvar "g_ctf_lastbase" "0"
-			} else
-			{
-				level.ctf_settings["axisbase"] = "-3144 2749 64.13 0"
-				level.ctf_settings["alliedbase"] = "1240 -96 -59.88 180"
-				local.alliedregion = 1
-				setcvar "g_ctf_lastbase" "1"
-			}
-			thread global/libmef/spawn.scr::spawnblock_thread local.alliedregion
+		case "ftctf":
+			waitthread global/libmef/spawn.scr::spawnblock_begin
+			waitthread setup_bases
 			thread global/libmef/ctf.scr::ctf_begin
 			break
 
-		case "ft":
-			if (int(getcvar "g_ctf_lastbase") == 1)
-			{
-				local.alliedregion = 2
-				setcvar "g_ctf_lastbase" "0"
-			} else
-			{
-				local.alliedregion = 1
-				setcvar "g_ctf_lastbase" "1"
-			}
+		case "dem":
+		case "ftdem":
+			waitthread global/libmef/spawn.scr::spawnblock_begin
+			waitthread setup_bases
+			thread global/libmef/dem.scr::dem_begin
+			break
 
-			thread global/libmef/spawn.scr::spawnblock_thread local.alliedregion
+		case "ft":
+			waitthread global/libmef/spawn.scr::spawnblock_begin
 			thread global/libmef/ft.scr::ft_begin
 			break
 
 		case "rbm":
+			waitthread global/libmef/spawn.scr::spawnblock_begin
 			thread roundbasedthread
 			break
 	}
@@ -79,7 +65,6 @@ setcvar "g_scoreboardpic" "mohdm7"
 		exec global/ambient.scr mohdm7
 	
 	level waittill spawn
-	$world farclipoverride -1
 	
 end
 
@@ -100,4 +85,37 @@ roundbasedthread:
 
 	level waittill roundstart
 
+end
+
+
+setup_bases:
+	if (level.mef_alliedspawnregion == "north")
+	{
+		// common bases for dem and ctf
+		waitthread global/libmef/bases.scr::addbasepair "925 -1224 -287.88 90 Allied Cable Spool" "-2944 2512 64.13 90 V2 Rocket" cablespool v2rocket
+		waitthread global/libmef/bases.scr::addbasepair "1488 -1220 24.13 90 Allied Bunker Stove" "-2935 2520 284.13 90 V2 Gantry Crane" bunkerstove crane
+		waitthread global/libmef/bases.scr::addbasepair "182 1624 -135.88 90 Allied Barracks" "-2064 729 0.13 180 Axis Barracks" bunkbed bunkbed
+		waitthread global/libmef/bases.scr::addbasepair "-140 -592 -199.88 90 Allied Lockers" "-1500 953 -103 180 Axis Files" lockers bigfilecab
+		waitthread global/libmef/bases.scr::addbasepair "-1135 -639 -228.75 -135 Allied Wicker Basket" "-743 2510 -117.00 -135 Axis Ceramic Pot" wickerbasket ceramicpot
+
+		// additional bases for ctf only
+		if (level.mef_gametype == "ctf" || level.mef_gametype == "ftctf")
+		{
+			waitthread global/libmef/bases.scr::addbasepair "1240 -96 -59.88 180" "-3144 2749 64.13 0"
+		}
+	} else
+	{
+		// common bases for dem and ctf
+		waitthread global/libmef/bases.scr::addbasepair "-2176 949 284.13 90 Radar Dish" "757 -31 -151.88 -45 V2 Rocket" radardish v2rocket
+		waitthread global/libmef/bases.scr::addbasepair "-3120 1314 314.13 -90 Allied Radio" "757 -31 -151.88 180 V2 Gantry Crane" radiostation crane
+		waitthread global/libmef/bases.scr::addbasepair "-2064 729 0.13 180 Allied Barracks" "182 1624 -135.88 90 Axis Barracks" bunkbed bunkbed
+		waitthread global/libmef/bases.scr::addbasepair "-1500 953 -103 180 Allied Files" "-140 -592 -199.88 90 Axis Lockers" bigfilecab lockers
+		waitthread global/libmef/bases.scr::addbasepair "-743 2510 -117.00 -135 Allied Ceramic Pot" "-1135 -639 -228.75 -135 Axis Wicker Basket" ceramicpot wickerbasket
+
+		// additional bases for ctf only
+		if (level.mef_gametype == "ctf" || level.mef_gametype == "ftctf")
+		{
+			waitthread global/libmef/bases.scr::addbasepair "-3144 2749 64.13 0" "1240 -96 -59.88 180"
+		}
+	}
 end

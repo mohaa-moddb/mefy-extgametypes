@@ -3,7 +3,7 @@
 // SCRIPTING: POWZER
 
 // **********************************************************************
-// Extended-Gametype Mapscript Version 1.0 (06-02-04)
+// Extended-Gametype Mapscript Version 1.1.1 (11-15-04)
 // By Mark Follett (Mefy)
 // email: mef123@geocities.com
 // web: www.planetmedalofhonor.com/mefy
@@ -25,46 +25,32 @@ setcvar "g_scoreboardpic" "mohdm1"
 
 	level.mef_mapname = "mohdm1"
 	level.mef_maptype = "dm"
-	level.mef_supportedgametypes = "ffa"::"tdm"::"rbm"::"ft"::"ctf"
+	level.mef_supportedgametypes = "ffa"::"tdm"::"rbm"::"ft"::"ctf"::"ftctf"::"dem"::"ftdem"
 	level.mef_defaultgametype = "ft"
 
 	switch (waitthread global/libmef/util.scr::get_gametype)
 	{
 		case "ctf":
-	        	// Swap the base positions each round
-			if (int(getcvar "g_ctf_lastbase") == 1)
-			{
-				level.ctf_settings["alliedbase"] = "225 16 72.13 -90"
-				level.ctf_settings["axisbase"] = "380 2263 384.13 90"
-				local.alliedregion = 2
-				setcvar "g_ctf_lastbase" "0"
-			} else
-			{
-				level.ctf_settings["axisbase"] = "225 16 72.13 -90"
-				level.ctf_settings["alliedbase"] = "380 2263 384.13 90"
-				local.alliedregion = 1
-				setcvar "g_ctf_lastbase" "1"
-			}
-			thread global/libmef/spawn.scr::spawnblock_thread local.alliedregion
+		case "ftctf":
+			waitthread global/libmef/spawn.scr::spawnblock_begin
+			waitthread setup_bases
 			thread global/libmef/ctf.scr::ctf_begin
 			break
 
+		case "dem":
+		case "ftdem":
+			waitthread global/libmef/spawn.scr::spawnblock_begin
+			waitthread setup_bases
+			thread global/libmef/dem.scr::dem_begin
+			break
+
 		case "ft":
-			if (int(getcvar "g_ctf_lastbase") == 1)
-			{
-				local.alliedregion = 2
-				setcvar "g_ctf_lastbase" "0"
-			} else
-			{
-				local.alliedregion = 1
-				setcvar "g_ctf_lastbase" "1"
-			}
-		
-			thread global/libmef/spawn.scr::spawnblock_thread local.alliedregion
+			waitthread global/libmef/spawn.scr::spawnblock_begin
 			thread global/libmef/ft.scr::ft_begin
 			break
 
 		case "rbm":
+			waitthread global/libmef/spawn.scr::spawnblock_begin
 			thread roundbasedthread
 			break
 	}
@@ -85,8 +71,6 @@ setcvar "g_scoreboardpic" "mohdm1"
 
 	level waittill spawn
 
-	$world farclipoverride -1
-
 end
 
 //-----------------------------------------------------------------------------
@@ -106,4 +90,37 @@ roundbasedthread:
 
 	level waittill roundstart
 
+end
+
+
+setup_bases:
+	if (level.mef_alliedspawnregion == "east")
+	{
+		// common bases for dem and ctf
+		waitthread global/libmef/bases.scr::addbasepair "-750 630 -15.88 0 Allied Wine Cellar" "1043 2085 512.13 0 Axis Files" winecasks smallfilecab
+		waitthread global/libmef/bases.scr::addbasepair "-1502 797 220.13 -45 Allied Typewriter" "1237 2631 672.13 180 Axis Trunk" typewriter trunk
+		waitthread global/libmef/bases.scr::addbasepair "-189 1275 95.13 -45 Allied Beef" "1121 1504 432.17 -90 Axis Sausage" beef sausage
+		waitthread global/libmef/bases.scr::addbasepair "1105 277 304.13 0 Allied Flour Bag" "-447 2320 384.19 -90 Axis Nebelwerfer" flourbag nebelwerfer
+		waitthread global/libmef/bases.scr::addbasepair "324 -200 48.13 -150 Allied Flak Cannon"  "820 2385 384.13 180 Axis Picnic Table" 20mmflak umbrellatable
+
+		// additional bases for ctf only
+		if (level.mef_gametype == "ctf" || level.mef_gametype == "ftctf")
+		{
+			waitthread global/libmef/bases.scr::addbasepair "225 16 72.13 -90" "380 2263 384.13 90"
+		}
+	} else
+	{
+		// common bases for dem and ctf
+		waitthread global/libmef/bases.scr::addbasepair "1105 1941 512.13 90 Allied Files" "-750 630 -15.88 0 Axis Wine Cellar" smallfilecab winecasks
+		waitthread global/libmef/bases.scr::addbasepair "1237 2631 672.13 180 Allied Trunk" "-1502 797 220.13 -45 Axis Typewriter" trunk typewriter
+		waitthread global/libmef/bases.scr::addbasepair "1121 1504 432.17 -90 Allied Sausage" "-189 1275 95.13 -45 Axis Beef" sausage beef
+		waitthread global/libmef/bases.scr::addbasepair "-447 2320 384.19 -90 Allied Nebelwerfer" "1105 277 304.13 0 Axis Flour Bag" nebelwerfer flourbag
+		waitthread global/libmef/bases.scr::addbasepair "820 2385 384.13 180 Allied Picnic Table" "324 -200 48.13 -150 Axis Flak Cannon" umbrellatable 20mmflak
+
+		// additional bases for ctf only
+		if (level.mef_gametype == "ctf" || level.mef_gametype == "ftctf")
+		{
+			waitthread global/libmef/bases.scr::addbasepair "380 2263 384.13 90" "225 16 72.13 -90"
+		}
+	}
 end

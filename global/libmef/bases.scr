@@ -1,8 +1,8 @@
 /*
 ================================================================================
 Base Selection Library
-for Medal Of Honor: Allied Assault
-Version 1.0 (06/02/04)
+for Medal Of Honor
+Version 1.2.2 (11/15/04)
 
 Copyright (c) 2004 Mark Follett
 email: mef123@geocities.com
@@ -51,33 +51,47 @@ init_base_arrays:
 end
 
 
-addbase local.team local.pos:
+addbase local.team local.pos local.type local.angles:
 	waitthread init_base_arrays
+
+	local.bdata["pos"] = local.pos
+	local.bdata["type"] = local.type
+	local.bdata["angles"] = local.angles
+
 	if (local.team == "allies")
 	{
-		level.mef_albases[level.mef_albases.size] = local.pos
+		level.mef_albases[level.mef_albases.size] = local.bdata
 	} else if (local.team == "axis")
 	{
-		level.mef_axbases[level.mef_axbases.size] = local.pos
+		level.mef_axbases[level.mef_axbases.size] = local.bdata
 	} else
 	{
-		level.mef_dmbases[level.mef_dmbases.size] = local.pos
+		level.mef_dmbases[level.mef_dmbases.size] = local.bdata
 	}
 end
 
 
-addbasepair local.alpos local.axpos:
+addbasepair local.alpos local.axpos local.altype local.axtype local.alangles local.axangles:
 	waitthread init_base_arrays
+
+	local.albdata["pos"] = local.alpos
+	local.albdata["type"] = local.altype
+	local.albdata["angles"] = local.alangles
+
+	local.axbdata["pos"] = local.axpos
+	local.axbdata["type"] = local.axtype
+	local.axbdata["angles"] = local.axangles
+
 	local.id = level.mef_basepairs.size
-	level.mef_basepairs[local.id][0] = local.alpos
-	level.mef_basepairs[local.id][1] = local.axpos
+	level.mef_basepairs[local.id][0] = local.albdata
+	level.mef_basepairs[local.id][1] = local.axbdata
 end
 
 
-select_baseid local.total:
+select_baseid local.total local.cvar:
 	if (local.total > 0)
 	{
-		local.lastbase = (int(getcvar "g_mef_lastbase"))
+		local.lastbase = (int(getcvar local.cvar))
 		
 		if (local.total > 1)
 		{
@@ -97,7 +111,7 @@ select_baseid local.total:
 			local.nextbase = 0
 		}
 		
-		setcvar "g_mef_lastbase" local.nextbase
+		setcvar local.cvar local.nextbase
 	}
 end local.nextbase
 
@@ -121,7 +135,7 @@ select_basepair:
 	local.ps = local.bbs + local.bb
 	local.total = local.ps + local.p
 
-	local.nextbase = waitthread select_baseid local.total
+	local.nextbase = waitthread select_baseid local.total "g_mef_lastbase"
 
 	if (local.nextbase != NIL)
 	{
@@ -164,8 +178,8 @@ select_basepair:
 		}
 	} else
 	{
-		local.albase = "0 0 0 0 Error - No Base Pairs Defined"
-		local.axbase = local.albase
+		local.albase["pos"] = "-100 0 0 0 Error - No Base Pairs Defined"
+		local.axbase["pos"] = "100 0 0 0 Error - No Base Pairs Defined"
 	}
 end (local.albase::local.axbase)
 
@@ -191,7 +205,7 @@ select_base local.team:
 	local.ps = local.bs + local.b
 	local.total = local.ps + local.p
 	
-	local.nextbase = waitthread select_baseid local.total
+	local.nextbase = waitthread select_baseid local.total "g_mef_lastbase"
 
 	if (local.nextbase != NIL)
 	{
@@ -209,50 +223,1320 @@ select_base local.team:
 		}
 	} else
 	{
-		local.base = "0 0 0 0 Error - No " + local.team + "Base Defined"
+		local.base["pos"] = "0 0 0 0 Error - No " + level.mef_team[local.team].desc + " Base Defined"
+	}
+end local.base
+
+
+read_base_settings local.settings local.team:
+	if (local.team == "allies" || local.team == "axis")
+	{
+		if (local.team == "allies")
+		{
+			local.bdata["pos"] = local.settings["alliedbase"]
+		} else
+		{
+			local.bdata["pos"] = local.settings["axisbase"]
+		}
+		
+		if (local.bdata["pos"] == NIL || local.bdata["pos"] == "")
+		{
+			local.bdata = waitthread select_base local.team
+			local.bdata["selected"] = 1
+		}
+		
+		local.result[local.team] = waitthread new_base local.bdata local.team
+	} else
+	{
+		local.albdata["pos"] = local.settings["alliedbase"]
+		local.axbdata["pos"] = local.settings["axisbase"]
+		
+		if ((local.albdata["pos"] == NIL || local.albdata["pos"] == "") || (local.axbdata["pos"] == NIL || local.axbdata["pos"] == ""))
+		{
+			local.basepair = waitthread select_basepair
+			local.albdata = local.basepair[1]
+			local.axbdata = local.basepair[2]
+			local.albdata["selected"] = 1
+			local.axbdata["selected"] = 1
+		}
+		
+		local.result["allies"] = waitthread new_base local.albdata "allies"
+		local.result["axis"] = waitthread new_base local.axbdata "axis"
+	}
+end local.result
+
+
+new_base local.bdata local.team:
+	local.base = waitthread global/libmef/util.scr::read_position_string local.bdata["pos"]
+	local.base.team = local.team
+
+	if (local.bdata["type"] != NIL)
+	{
+		local.base.type = local.bdata["type"]
+	} else
+	{
+		local.base.type = "voodoo"
+	}
+
+	if (local.bdata["angles"] != NIL)
+	{
+		local.base.angles = local.bdata["angles"]
 	}
 end local.base
 
 
 debug_showbases:
 	waitthread init_base_arrays
-	waitthread debug_showbaselist level.mef_albases "allied_airborne" "allies"
-	waitthread debug_showbaselist level.mef_axbases "german_panzer_tankcommander" "axis"
-	waitthread debug_showbaselist level.mef_dmbases "allied_manon" "both"
-	waitthread debug_showbasepairlist level.mef_basepairs "american_army" "german_wehrmacht_soldier" "allies/axis"
+	waitthread debug_showbaselist level.mef_albases "allies" "allies"
+	waitthread debug_showbaselist level.mef_axbases "axis" "axis"
+	waitthread debug_showbaselist level.mef_dmbases "both" "both"
+	waitthread debug_showbasepairlist level.mef_basepairs "pair"
 end
 
 
-debug_showbaselist local.blist local.model local.msg:
+debug_showbaselist local.blist local.team local.msg:
 	for (local.i = 0; local.i < local.blist.size; local.i++)
 	{
-		waitthread debug_showbase local.blist[local.i] local.model (local.msg + " " + local.i)
+		waitthread debug_showbase local.blist[local.i] local.team (local.msg + " " + local.i)
 	}
 end
 
 
-debug_showbasepairlist local.blist local.almodel local.axmodel local.msg:
+debug_showbasepairlist local.blist local.msg:
 	for (local.i = 0; local.i < local.blist.size; local.i++)
 	{
-		waitthread debug_showbase local.blist[local.i][0] local.almodel (local.msg + " " + local.i)
-		waitthread debug_showbase local.blist[local.i][1] local.axmodel (local.msg + " " + local.i)
+		waitthread debug_showbase local.blist[local.i][0] "allies" (local.msg + " " + local.i)
+		waitthread debug_showbase local.blist[local.i][1] "axis" (local.msg + " " + local.i)
 	}
 end
 
 
-debug_showbase local.pos local.model local.msg:
-	local.base = waitthread global/libmef/util.scr::read_position_string local.pos
+debug_showbase local.bdata local.team local.msg:
+	local.base = waitthread new_base local.bdata local.team
 
-	local.ent = spawn script_model
-	local.ent model ("player/" + local.model + ".tik")
-	local.ent.origin = local.base.origin
-	local.ent.angles = local.base.angles
-	local.ent notsolid
-	
+	if (!local.bdata["selected"])
+	{
+		waitthread setup_base local.base local.team
+		waitthread desolidify_base local.base
+	}
+
 	local.trig = spawn trigger_multiple
-	local.trig.origin = local.ent.origin
-	local.trig setsize ( -10 -10 -10 ) ( 10 10 10 )
+	local.trig.origin = local.base.origin
+	local.trig setsize ( -30 -30 -30 ) ( 30 30 30 )
 	local.trig message local.msg
-
-	local.base delete
 end
+
+
+desolidify_base local.base:
+	if (local.base.bombtargets != NIL)
+	{
+		for (local.i = 0; local.i < local.base.bombtargets.size; local.i++)
+		{
+			waitthread desolidify_base local.base.bombtargets[local.i]
+		}
+	}
+	
+	if (local.base.collents != NIL)
+	{
+		for (local.i = 0; local.i < local.base.collents.size; local.i++)
+		{
+			local.base.collents[local.i] notsolid
+		}
+	}
+
+	local.base notsolid
+end
+
+
+spawn_bases local.bases:
+//	level.mef_setbases = 1
+
+	if (level.mef_setbases)
+	{
+		level waittill spawn
+
+		if (!level.mef_devmode)
+		{
+			level waittill roundstart
+		}
+	}
+	
+	if (local.bases["allies"] != NIL)
+	{
+		waitthread global/libmef/bases.scr::setup_base local.bases["allies"]
+	}
+
+	if (local.bases["axis"] != NIL)
+	{
+		waitthread global/libmef/bases.scr::setup_base local.bases["axis"]
+	}
+
+	if (level.mef_devmode)
+	{
+		waitthread global/libmef/bases.scr::debug_showbases
+	}
+	
+	level.mef_basesspawned = 1
+end
+
+
+setup_base local.base:
+	switch (local.base.type)
+	{
+		case "voodoo":
+		case "beef":
+		case "sausage":
+		case "flourbag":
+		case "fire":
+		case "ceramicpot":
+		case "wickerbasket":
+		case "valvetree":
+		case "cardtable":
+		case "umbrellatable":
+		case "tntcrate":
+		case "powerpanel":
+		case "radiostation":
+		case "typewriter":
+		case "enigma":
+		case "radio":
+		case "bunkbed":
+		case "bunkerstove":
+		case "cablespool":
+		case "crane":
+		case "projectorcart":
+		case "lockers":
+		case "bigfilecab":
+		case "smallfilecab":
+		case "winecasks":
+		case "librarytable":
+		case "piano":
+		case "indycrate":
+		case "trunk":
+		case "toilet":
+		case "radardish":
+		case "tent":
+		case "bmwbike":
+		case "car":
+		case "mercedes":
+		case "deliverytruck":
+		case "jeep":
+		case "gmctruck":
+		case "opeltruck":
+		case "m3":
+		case "sdkfz":
+//		case "kingtank":
+//		case "tigertank":
+		case "panzer":
+		case "shermantank":
+		case "fockwulf":
+		case "stuka":
+		case "higginsboat":
+		case "v2rocket":
+		case "flak88":
+		case "nebelwerfer":
+		case "15cmcannon":
+		case "20mmflak":
+		case "opelflak":
+		case "sdkfznebel":
+			local.type = local.base.type
+			break
+			
+		default:
+			local.type = "voodoo"
+			break
+	}
+	
+	waitthread ("setup_base_" + local.type) local.base
+	local.base.destroythread = global/libmef/bases.scr::blowup_base
+end
+
+
+blowup_base:
+	self.symbol remove
+end
+
+
+setup_base_voodoo local.base:
+	local.model = waitthread select_random_playermodel local.base.team
+	local.doll = waitthread add_target local.base model local.model[1] ( 0 0 0 ) ( 0 0 0 )
+	local.doll.destroythread = global/libmef/bases.scr::blowup_voodoo_doll
+	local.doll.keepmodel = 1
+	waitthread spawn_team_symbol local.base ( 0 0 98 )
+	waitthread set_positions local.base ( 10 0 66 ) ( 0 0 0 ) ( local.model[2] 0 70 ) ( -90 0 0 ) ( 0 30 10 ) ( 0 -30 10 )
+end local.doll
+
+
+blowup_voodoo_doll:
+	self anim death_explosion_small
+	self notsolid
+end
+
+
+setup_base_beef local.base:
+	local.obj = waitthread add_target local.base model "miscobj/beef.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.obj notsolid
+	waitthread spawn_team_symbol local.base ( 0 -3 -10 )
+	local.coll = waitthread add_collision_ent local.obj ( 0 -5 0 ) ( -18 -8 0 ) ( 18 8 88 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 0 0 53 ) ( 0 90 0 ) ( 6 -13 45 ) ( -97 69 0 ) ( 0 30 5 ) ( 0 -30 5 )
+end local.obj
+
+
+setup_base_sausage local.base:
+	local.obj = waitthread add_target local.base model "items/bratwurst.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.obj notsolid
+	local.obj scale 8.0
+	waitthread spawn_team_symbol local.base ( 0 0 35 )
+	local.coll = waitthread add_collision_ent local.obj ( 0 0 0 ) ( -10 -50 0 ) ( 15 50 19 ) ( 0 0 0 )
+	waitthread set_positions local.base ( -3 0 19 ) ( 0 90 0 ) ( -3 0 22.1 ) ( -180 0 0 ) ( 0 30 15 ) ( 0 -30 15 )
+end local.obj
+
+
+setup_base_flourbag local.base:
+	local.obj = waitthread add_target local.base model "static/flourbag-bent.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.obj notsolid
+	local.obj scale 2.0
+	waitthread spawn_team_symbol local.base ( 0 0 35 )
+	local.coll = waitthread add_collision_ent local.obj ( 0 0 0 ) ( -15 -15 0 ) ( 15 15 30 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 2 0 15 ) ( 0 90 0 ) ( 2 0 21 ) ( -180 0 0 ) ( 0 30 15 ) ( 0 -30 15 )
+end local.obj
+
+
+setup_base_fire local.base:
+	local.obj = waitthread add_target local.base model "static/fireplaceset.tik" ( 10 25 0 ) ( 0 0 0 )
+	local.obj1 = waitthread add_target local.base model "static/fire.tik" ( 0 0 0.5 ) ( 0 0 0 )
+	local.obj notsolid
+	local.obj1 notsolid
+
+	local.obj1 scale 0.6
+	local.obj scale 2.0
+
+	local.obj surface cradle "+nodraw"
+	local.obj surface poker "+nodraw"
+	local.obj surface stand "+nodraw"
+
+	waitthread spawn_team_symbol local.base ( 0 0 45 )
+	local.coll = waitthread add_collision_ent local.obj ( -10 -25 0 ) ( -15 -25 0 ) ( 15 25 25 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 0 -10 20 ) ( 0 90 0 ) ( 0 0 23 ) ( -180 0 0 ) ( 0 30 15 ) ( 0 -30 15 )
+end local.obj
+
+
+setup_base_ceramicpot local.base:
+	local.obj = waitthread add_target local.base model "static/south_africa_ceramic_pot_7.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.obj scale 2.0
+	local.obj notsolid
+	waitthread spawn_team_symbol local.base ( -1 1 89 )
+	local.coll = waitthread add_collision_ent local.obj ( 0 0 0 ) ( -25 -25 0 ) ( 25 25 60 ) ( 0 45 0 )
+	local.coll1 = waitthread add_collision_ent local.obj ( 0 0 0 ) ( -10 -10 0 ) ( 10 10 80 ) ( 0 45 0 )
+	waitthread set_positions local.base ( -1 1 79 ) ( 0 90 0 ) ( -1 1 85 ) ( 180 0 0 ) ( 0 40 5 ) ( 0 -40 5 )
+end local.obj
+
+
+setup_base_wickerbasket local.base:
+	local.obj = waitthread add_target local.base model "static/wicker_basket_2.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.obj scale 2.0
+	local.obj notsolid
+	waitthread spawn_team_symbol local.base ( 0 0 75 )
+	local.coll = waitthread add_collision_ent local.obj ( 0 0 0 ) ( -25 -25 0 ) ( 25 25 30 ) ( 0 45 0 )
+	local.coll1 = waitthread add_collision_ent local.obj ( 0 0 0 ) ( -12 -12 0 ) ( 12 12 67 ) ( 0 45 0 )
+	waitthread set_positions local.base ( 0 0 63 ) ( 0 90 0 ) ( 0 0 70 ) ( 180 0 0 ) ( 0 40 5 ) ( 0 -40 5 )
+end local.obj
+
+
+setup_base_valvetree local.base:
+	local.obj = waitthread add_target local.base model "static/static_valvetree.tik" ( 0 0 120 ) ( 0 0 180 )
+	waitthread spawn_team_symbol local.base ( 7 0 130 )
+	waitthread set_positions local.base ( 7 0 40 ) ( 0 90 0 ) ( 17 0.5 34 ) ( -90 0 0 ) ( 12 30 5 ) ( 12 -30 5 )
+end local.obj
+
+
+spawn_cardtable local.base:
+	local.obj = waitthread add_target local.base model "furniture/cardtable.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.obj1 = waitthread add_target local.base model "furniture/cardchair.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.obj2 = waitthread add_target local.base model "furniture/cardchair.tik" ( 50 0 0 ) ( 0 180 0 )
+	local.obj3 = waitthread add_target local.base model "miscobj/bottle_rum.tik" ( 35 -20 49 ) ( 0 50 0 )
+	local.obj4 = waitthread add_target local.base model "miscobj/shotglass.tik" ( 32 -16 49 ) ( 0 0 0 )
+
+	local.obj notsolid
+	local.obj1 notsolid
+	local.obj2 notsolid
+	local.obj3 notsolid
+	local.obj4 notsolid
+
+	local.coll = waitthread add_collision_ent local.obj ( 25 0 0 ) ( -25 -40 0 ) ( 25 40 49 ) ( 0 0 0 )
+end
+
+
+setup_base_cardtable local.base:
+	waitthread spawn_cardtable local.base
+	waitthread spawn_team_symbol local.base ( 25 0 65 )
+	waitthread set_positions local.base ( 10 20 49 ) ( 0 -45 0 ) ( 10 20 55 ) ( 180 0 0 ) ( 25 25 49 ) ( 25 -25 49 )
+end local.obj
+
+
+setup_base_umbrellatable local.base:
+	local.obj = waitthread add_target local.base model "static/tablewithumbrella.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.obj1 = waitthread add_target local.base model "miscobj/shortglass.tik" ( -10 -5 40.75 ) ( 0 0 0 )
+	local.obj2 = waitthread add_target local.base model "miscobj/shortglass.tik" ( 10 -10 40.75 ) ( 0 0 0 )
+	local.obj3 = waitthread add_target local.base model "static/wicker_basket_3.tik" ( 0 -10 40.75 ) ( 0 0 0 )
+	local.obj3 scale 0.25
+
+	local.obj notsolid
+	local.obj1 notsolid
+	local.obj2 notsolid
+	local.obj3 notsolid
+
+	local.coll = waitthread add_collision_ent local.obj ( 0 0 0 ) ( -26 -26 39 ) ( 26 26 40 ) ( 0 0 0 )
+	local.coll1 = waitthread add_collision_ent local.obj ( 0 0 0 ) ( -1 -1 40 ) ( 1 1 113 ) ( 0 0 0 )
+	waitthread spawn_team_symbol local.base ( 0 0 120 )
+	waitthread set_positions local.base ( 10 15 40.75 ) ( 0 -35 0 ) ( 10 15 46 ) ( 180 0 0 ) ( 15 15 0 ) ( -15 -15 0 )
+end
+
+
+setup_base_tntcrate local.base:
+	local.type = randomint(3) + 1
+	
+	if (local.type == 1)
+	{
+		local.height = 21
+	} else if (local.type == 2)
+	{
+		local.height = 18
+	} else
+	{
+		local.height = 21
+	}
+
+	local.obj = waitthread add_target local.base model ("static/exp_crate" + local.type + ".tik") ( 0 0 0 ) ( 0 0 0 )
+	waitthread spawn_team_symbol local.base ( 4 -3 45 )
+	waitthread set_positions local.base ( 0 0 local.height ) ( 0 90 0 ) ( 4 -3 (local.height + 5) ) ( 180 0 0 ) ( 0 25 10 ) ( 0 -25 10 )
+end local.obj
+
+
+setup_base_powerpanel local.base:
+	local.obj = waitthread add_target local.base model "static/static_powerpanel.tik" ( 0 0 0 ) ( 0 0 0 )
+	waitthread spawn_team_symbol local.base ( 0 -1.25 65 )
+	waitthread set_positions local.base ( 0 0 53 ) ( 0 90 0 ) ( 15 -1.25 32 ) ( -90 0 0 ) ( 0 40 5 ) ( 0 -40 5 )
+end local.obj
+
+
+setup_base_radiostation local.base:
+	local.obj = waitthread add_target local.base model "static/static_radiostation3.tik" ( 0 0 0 ) ( 0 0 0 )
+	waitthread spawn_team_symbol local.base ( 0 0 60 )
+	waitthread set_positions local.base ( 0 0 43 ) ( 0 90 0 ) ( 15 0 15 ) ( -90 0 0 ) ( 3 30 0 ) ( 3 -30 0 )
+end local.obj
+
+
+setup_base_typewriter local.base:
+	local.obj = waitthread add_target local.base model "static/typewriter_ns.tik" ( 0 0 2 ) ( 0 0 0 )
+	waitthread spawn_team_symbol local.base ( -2 0 25 )
+	waitthread set_positions local.base ( -2 0 10 ) ( 0 90 0 ) ( 6.5 0 10 ) ( 180 0 0 ) ( 0 25 2 ) ( 0 -25 2 )
+end local.obj
+
+
+setup_base_enigma local.base:
+	local.obj = waitthread add_target local.base model "static/static_enigmaopen.tik" ( 0 0 0 ) ( 0 0 0 )
+	waitthread spawn_team_symbol local.base ( -2 0 30 )
+	waitthread set_positions local.base ( -2 13 0 ) ( 0 0 0 ) ( -6 0 16 ) ( -90 0 0 ) ( 0 25 2 ) ( 0 -25 2 )
+end local.obj
+
+
+setup_base_radio local.base:
+	local.obj = waitthread add_target local.base model "miscobj/radio_military.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.obj1 = waitthread add_target local.base model "static/microphone_ns.tik" ( 20.7 -2.9 0 ) ( 0 0 0 )
+	local.obj1 notsolid
+	waitthread spawn_team_symbol local.base ( -8 0 25 )
+	waitthread set_positions local.base ( 10 5 0 ) ( 0 0 0 ) ( 7 0 10 ) ( -90 0 0 ) ( 0 25 2 ) ( 0 -25 2 )
+end local.obj
+
+
+setup_base_bunkbed local.base:
+	local.obj = waitthread add_target local.base model "static/bunkbed.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.obj notsolid
+	waitthread spawn_team_symbol local.base ( -45 0 110 )
+	local.coll = waitthread add_collision_ent local.obj ( 0 0 10 ) ( -60 -26 0 ) ( 70 26 7 ) ( 0 0 0 )
+	local.coll1 = waitthread add_collision_ent local.obj ( 0 0 52 ) ( -60 -26 0 ) ( 70 26 7 ) ( 0 0 0 )
+	local.coll2 = waitthread add_collision_ent local.obj ( 0 0 92 ) ( -60 -26 0 ) ( 70 26 7 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 10 0 60 ) ( 0 90 0 ) ( 10 0 66 ) ( 180 0 0 ) ( 35 0 90 ) ( -15 0 90 )
+end local.obj
+
+
+setup_base_bunkerstove local.base:
+	local.obj = waitthread add_target local.base model "static/bunkerstove_ns.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.obj notsolid
+	waitthread spawn_team_symbol local.base ( 7 0 65 )
+	local.coll = waitthread add_collision_ent local.obj ( 0 0 0 ) ( -8 -16 0 ) ( 32 16 56 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 7 0 53 ) ( 0 0 0 ) ( 7 0 58 ) ( 180 0 0 ) ( 7 28 5 ) ( 7 -28 5 )
+end local.obj
+
+
+setup_base_cablespool local.base:
+	local.obj = waitthread add_target local.base model "static/static_cablespool_full.tik" ( 0 0 0 ) ( 0 0 0 )
+	waitthread spawn_team_symbol local.base ( 0 0 60 )
+	waitthread set_positions local.base ( 0 0 48 ) ( 0 90 0 ) ( 0 0 54 ) ( 180 0 0 ) ( 0 20 40 ) ( 0 -20 40 )
+end local.obj
+
+
+setup_base_crane local.base:
+	local.obj = waitthread add_target local.base model "miscobj/crane.tik" ( 0 0 8 ) ( 0 0 0 )
+	local.obj notsolid
+	if (local.base.team == "axis")
+	{
+		local.obj1 = waitthread add_target local.base model "static/cranebanner.tik" ( 0 100 320 ) ( 0 0 0 )
+		local.obj2 = waitthread add_target local.base model "static/cranebanner.tik" ( 0 -100 320 ) ( 0 0 0 )
+	}
+	local.exp1 = waitthread add_target local.base origin "" ( 0 210 20 ) ( 0 0 0 )
+	local.exp2 = waitthread add_target local.base origin "" ( 0 0 360 ) ( 0 0 0 )
+	local.exp3 = waitthread add_target local.base origin "" ( 0 -230 360 ) ( 0 0 0 )
+	local.exp1.explosionfx = "animate/fx_explosion_tank.tik"
+	local.exp2.explosionfx = "animate/fx_explosion_tank.tik"
+	local.exp3.explosionfx = "animate/fx_explosion_tank.tik"
+	waitthread spawn_team_symbol local.base ( 0 3 260 )
+	local.coll = waitthread add_collision_ent local.obj ( 0 210 0 ) ( -75 -25 -8 ) ( 75 25 82 ) ( 0 0 0 )
+	local.coll1 = waitthread add_collision_ent local.obj ( 0 -230 0 ) ( -75 -25 -8 ) ( 75 25 82 ) ( 0 0 0 )
+	local.coll2 = waitthread add_collision_ent local.obj ( 0 210 0 ) ( -15 -25 190 ) ( 15 25 365 ) ( 0 0 0 )
+	local.coll3 = waitthread add_collision_ent local.obj ( 0 -230 0 ) ( -15 -25 190 ) ( 15 25 365 ) ( 0 0 0 )
+	local.coll4 = waitthread add_collision_ent local.obj ( 0 0 0 ) ( -15 -255 360 ) ( 15 235 365 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 50 -230 66 ) ( 25 0 0 ) ( 0 -254 68 ) ( 90 -90 0 ) ( 0 210 85 ) ( 0 -230 85 ) local.obj
+end local.obj
+
+
+setup_base_projectorcart local.base:
+	local.obj = waitthread add_target local.base model "static/cart.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.obj1 = waitthread add_target local.base model "static/projector.tik" ( 10 0 53 ) ( 0 180 0 )
+	local.obj2 = waitthread add_target local.base model "miscobj/clipboard.tik" ( -5 5 53 ) ( 0 120 0 )
+	local.obj notsolid
+	local.obj1 notsolid
+	local.obj2 notsolid
+	waitthread spawn_team_symbol local.base ( 5 0 85 )
+	local.coll = waitthread add_collision_ent local.obj ( 0 0 0 ) ( -36 -20 11 ) ( 38 20 12 ) ( 0 0 0 )
+	local.coll1 = waitthread add_collision_ent local.obj ( 0 0 0 ) ( -36 -20 50 ) ( 38 20 51 ) ( 0 0 0 )
+	local.coll2 = waitthread add_collision_ent local.obj ( 10 0 53 ) ( -10 -6 0 ) ( 8 6 30 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 20 -12 53 ) ( 0 -30 0 ) ( 25 -10 58 ) ( 180 0 0 ) ( 10 30 5 ) ( 10 -30 5 )
+end local.obj
+
+
+setup_base_lockers local.base:
+	local.obj = waitthread add_target local.base model "static/locker_ns.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.obj1 = waitthread add_target local.base model "static/locker_ns.tik" ( 0 -22 0 ) ( 0 0 0 )
+	local.obj2 = waitthread add_target local.base model "static/locker_ns.tik" ( 0 22 0 ) ( 0 0 0 )
+	local.obj notsolid
+	local.obj1 notsolid
+	local.obj2 notsolid
+	waitthread spawn_team_symbol local.base ( 0 0 100 )
+	local.coll = waitthread add_collision_ent local.obj ( 0 0 0 ) ( -10 -33 0 ) ( 10 33 98 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 13 0 50 ) ( 0 90 0 ) ( 14 0 62 ) ( -90 0 0 ) ( 5 45 5 ) ( 5 -45 5 )
+end local.obj
+
+
+setup_base_bigfilecab local.base:
+	local.obj = waitthread add_target local.base model "static/bigfilecabinet.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.obj notsolid
+	waitthread spawn_team_symbol local.base ( 15 0 92 )
+	local.coll = waitthread add_collision_ent local.obj ( 0 0 0 ) ( 0 -14 0 ) ( 32 14 90 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 35 0 56 ) ( 0 90 0 ) ( 36 0 62 ) ( -90 0 0 ) ( 15 28 5 ) ( 15 -28 5 )
+end local.obj
+
+
+setup_base_smallfilecab local.base:
+	local.obj = waitthread add_target local.base model "static/smallfilecabinet.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.obj notsolid
+	waitthread spawn_team_symbol local.base ( 15 0 65 )
+	local.coll = waitthread add_collision_ent local.obj ( 0 0 0 ) ( 0 -14 0 ) ( 32 14 50 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 15 0 50 ) ( 0 0 0 ) ( 15 0 56 ) ( 180 0 0 ) ( 15 28 5 ) ( 15 -28 5 )
+end local.obj
+
+
+setup_base_winecasks local.base:
+	local.obj = waitthread add_target local.base origin "" ( 0 0 0 ) ( 0 0 0 )
+	thread spawn_winecask local.base
+	waitthread spawn_team_symbol local.base ( 7 0 90 )
+	local.coll = waitthread add_collision_ent local.obj ( 0 0 0 ) ( -28 -40 0 ) ( 28 44 52 ) ( 0 0 0 )
+	local.coll1 = waitthread add_collision_ent local.obj ( 0 0 0 ) ( -28 -20 52 ) ( 28 20 88 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 20 23 53.25 ) ( 7 0 0 ) ( 28 0.75 70 ) ( -90 0 0 ) ( 7 30 45 ) ( 7 -30 45 )
+end local.obj
+
+
+spawn_winecask local.base:
+	if (!level.mef_setbases)
+	{
+		level waittill spawn
+	
+		if (!level.mef_devmode)
+		{
+			level waittill roundstart
+		}
+	}
+
+	wait 0.5
+	local.obj = waitthread add_target local.base model "static/winecasks.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.obj notsolid
+end
+
+
+setup_base_librarytable local.base:
+	local.obj = waitthread add_target local.base model "static/librarytable.tik" ( 0 0 0 ) ( 0 0 0 )
+	waitthread spawn_team_symbol local.base ( 0 0 70 )
+	waitthread set_positions local.base ( 0 0 55.5 ) ( 0 0 0 ) ( 17 0 54 ) ( 195 0 0 ) ( 0 27 50 ) ( 0 -27 50 )
+end local.obj
+
+
+setup_base_piano local.base:
+	local.obj = waitthread add_target local.base model "static/piano.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.obj setsize ( -25 -50 0 ) ( 25 50 80 )
+	waitthread spawn_team_symbol local.base ( 0 0 82 )
+	waitthread set_positions local.base ( 19 0 43.5 ) ( 0 90 0 ) ( 15 0 62 ) ( -90 0 0 ) ( 0 34 75 ) ( 0 -34 75 )
+end local.obj
+
+
+setup_base_indycrate local.base:
+	local.crate = waitthread add_target local.base model "static/indycrate.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.crate.explosionfx = "fx/crates/debris_" + randomint(4) + ".tik"
+	local.crate.explosionsound = "snd_crate_wood"
+	waitthread spawn_team_symbol local.base ( 0 0 60 )
+	waitthread set_positions local.base ( 0 0 47 ) ( 0 0 0 ) ( 0 0 53 ) ( 180 0 0 ) ( 0 17 38 ) ( 0 -17 38 )
+end local.crate
+
+
+setup_base_trunk local.base:
+	local.crate = waitthread add_target local.base model "static/trunk.tik" ( 0 0 0 ) ( 0 180 0 )
+	local.crate notsolid
+	local.crate.explosionfx = "fx/crates/debris_" + randomint(4) + ".tik"
+	local.crate.explosionsound = "snd_crate_wood"
+	waitthread spawn_team_symbol local.base ( -14 0 50 )
+	local.coll = waitthread add_collision_ent local.crate ( 0 0 0 ) ( 0 -24 0 ) ( 28 24 32 ) ( 0 0 0 )
+	waitthread set_positions local.base ( -14 0 32 ) ( 0 90 0 ) ( -14 0 37 ) ( 180 0 0 ) ( -14 20 25 ) ( -14 -20 25 )
+end local.crate
+
+
+setup_base_toilet local.base:
+	local.toilet = waitthread add_target local.base model "static/toilet.tik" ( 0 0 0 ) ( 0 0 0 )
+	waitthread spawn_team_symbol local.base ( -12 0 110 )
+	waitthread set_positions local.base ( 10 0 20 ) ( 0 0 0 ) ( -1 0 94 ) ( -87 0 0 ) ( 0 30 10 ) ( 0 -30 10 )
+	local.base.buttonpressed_sound = "toilet_flush"
+end local.toilet
+
+
+setup_base_radardish local.base:
+	local.obj = waitthread add_target local.base model "miscobj/radar.tik" ( 0 0 0 ) ( 0 180 0 )
+	local.obj notsolid
+	local.obj.explosionfx = "animate/fx_explosion_tank.tik"
+	waitthread spawn_team_symbol local.base ( 15 102 107 )
+	local.coll = waitthread add_collision_ent local.obj ( 0 0 0 ) ( -135 -80 0 ) ( 135 80 50 ) ( 0 0 0 )
+	local.coll1 = waitthread add_collision_ent local.obj ( 0 0 0 ) ( -135 -80 0 ) ( 135 80 50 ) ( 0 60 0 )
+	local.coll2 = waitthread add_collision_ent local.obj ( 0 0 0 ) ( -135 -80 0 ) ( 135 80 50 ) ( 0 120 0 )
+	local.coll3 = waitthread add_collision_ent local.obj ( 0 0 0 ) ( -45 -122 0 ) ( 35 100 250 ) ( 0 0 0 )
+	waitthread set_positions local.base ( -8 -60 88 ) ( 0 0 0 ) ( -29 -13 100 ) ( -90 180 0 ) ( -8 -60 83 ) ( -15 102 102 )
+end local.obj
+
+
+setup_base_tent local.base:
+	local.org = waitthread add_target local.base origin "" ( -10 25 0 ) ( 0 90 0 )
+	waitthread spawn_cardtable local.org
+	local.obj = waitthread add_target local.base model "static/tent.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.obj notsolid
+	local.obj.explosionfx = "animate/fx_explosion_tank.tik"
+	local.obj1 = waitthread add_target local.base model "static/cot_nonstatic.tik" ( -150 115 0 ) ( 0 0 0 )
+	local.obj2 = waitthread add_target local.base model "static/cot_nonstatic.tik" ( -170 -85 0 ) ( 0 90 0 )
+	waitthread spawn_team_symbol local.base ( 170 0 135 )
+	local.coll = waitthread add_collision_ent local.obj ( -5 0 0 ) ( -210 -162 130 ) ( 210 162 140 ) ( 0 0 0 )
+	local.coll1 = waitthread add_collision_ent local.obj ( -5 0 0 ) ( -210 -162 0 ) ( -180 162 140 ) ( 0 0 0 )
+	local.coll2 = waitthread add_collision_ent local.obj ( -5 0 0 ) ( -210 -162 0 ) ( 210 -132 140 ) ( 0 0 0 )
+	local.coll3 = waitthread add_collision_ent local.obj ( -5 0 0 ) ( -210 132 0 ) ( 210 162 140 ) ( 0 0 0 )
+	local.coll4 = waitthread add_collision_ent local.obj ( -5 0 0 ) ( 180 -162 0 ) ( 210 -50 140 ) ( 0 0 0 )
+	local.coll5 = waitthread add_collision_ent local.obj ( -5 0 0 ) ( 180 50 0 ) ( 210 162 140 ) ( 0 0 0 )
+	local.coll6 = waitthread add_collision_ent local.obj ( -5 0 0 ) ( -210 -162 118 ) ( 210 -70 140 ) ( 0 0 0 )
+	local.coll7 = waitthread add_collision_ent local.obj ( -5 0 0 ) ( -210 70 118 ) ( 210 162 140 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 10 20 49 ) ( 0 -45 0 ) ( 10 20 55 ) ( 180 0 0 ) ( 25 25 49 ) ( 25 -25 49 ) local.org
+end local.obj
+
+
+setup_base_bmwbike local.base:
+	local.bike = waitthread add_vehiclemodel local.base model "vehicles/bmwbike.tik" ( 0 0 0 ) ( 0 0 0 ) ( 90 75 50 ) ( -5 10 0 )
+	local.bike.replacemodel = "vehicles/bmwbike_d.tik"
+	local.bike.explosionfx = "fx/fx_bike_explosion.tik"
+	local.bike.explosionsound = "gas_explode"
+	waitthread spawn_team_symbol local.base ( 30 20 40 ) local.bike
+	local.coll = waitthread add_collision_ent local.bike ( 0 0 0 ) ( -67 -48 0 ) ( 70 48 60 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 11 -36 26.5 ) ( 0 0 0 ) ( 25 40 30 ) ( 90 94 0 ) ( -10 20 25 ) ( -13 -20 40 ) local.bike
+end local.bike
+
+
+setup_base_car local.base:
+	local.type = randomint 3
+
+	if (local.type == 0)
+	{
+		local.model = "vehicles/european_car_grey.tik"
+	} else if (local.type == 1)
+	{
+		local.model = "vehicles/european_car_silver.tik"
+	} else
+	{
+		local.model = "vehicles/european_car_tan.tik"
+	}
+
+	local.car = waitthread add_vehiclemodel local.base model local.model ( 0 0 0 ) ( 0 0 0 ) ( 165 80 50 ) ( -5 0 0 )
+	local.car.replacemodel = "vehicles/vehicle_car_burnt-notstatic.tik"
+	local.car.explosionfx = "fx/fx_truck_explosion.tik"
+	local.car.explosionsound = "gas_explode"
+	waitthread spawn_team_symbol local.base ( 100 0 70 ) local.car
+	local.coll = waitthread add_collision_ent local.car ( 0 0 0 ) ( -128 -48 0 ) ( 128 48 97 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 0 44 19 ) ( 0 0 0 ) ( 0 45 50 ) ( 90 93 0 ) ( 0 17 22 ) ( 0 -17 22 ) local.car
+end local.car
+
+
+setup_base_mercedes local.base:
+	local.car = waitthread add_vehiclemodel local.base model "vehicles/mercedes.tik" ( 0 0 0 ) ( 0 0 0 ) ( 150 80 50 ) ( -15 0 0 )
+	local.car.replacemodel = "vehicles/vehicle_car_burnt-notstatic.tik"
+	local.car.explosionfx = "fx/fx_truck_explosion.tik"
+	local.car.explosionsound = "gas_explode"
+	waitthread spawn_team_symbol local.base ( 95 0 55 ) local.car
+	local.coll = waitthread add_collision_ent local.car ( 0 0 0 ) ( -128 -48 0 ) ( 128 48 97 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 0 44 17 ) ( 0 0 0 ) ( 10 42 45 ) ( 90 97 0 ) ( 0 17 10 ) ( 0 -17 10 ) local.car
+end local.car
+
+
+setup_base_deliverytruck local.base:
+	local.type = randomint 3
+
+	if (local.type == 0)
+	{
+		local.model = "vehicles/european_delivery_truck_green.tik"
+	} else if (local.type == 1)
+	{
+		local.model = "vehicles/european_delivery_truck_grey.tik"
+	} else
+	{
+		local.model = "vehicles/european_delivery_truck_red3.tik"
+	}
+
+	local.truck = waitthread add_vehiclemodel local.base model local.model ( 0 0 0 ) ( 0 0 0 ) ( 125 80 50 ) ( -5 0 0 )
+	local.truck.explosionfx = "fx/fx_truck_explosion.tik"
+	local.truck.explosionsound = "gas_explode"
+	waitthread spawn_team_symbol local.base ( 85 0 60 ) local.truck
+	local.coll = waitthread add_collision_ent local.truck ( 0 0 0 ) ( -100 -43 0 ) ( 100 43 90 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 0 37 19 ) ( 0 0 0 ) ( 0 38 50 ) ( 86 95 0 ) ( 0 17 15 ) ( 0 -17 15 ) local.truck
+end local.truck
+
+
+setup_base_jeep local.base:
+	local.type = randomint 2
+
+	if (local.type == 0)
+	{
+		local.model = "vehicles/jeep.tik"
+	} else
+	{
+		local.model = "vehicles/jeep_bench.tik"
+	}
+
+	local.jeep = waitthread add_vehiclemodel local.base model local.model ( 0 0 0 ) ( 0 0 0 ) ( 136 80 50 ) ( -5 0 0 )
+	local.jeep.removemodel = 1
+	local.jeep.explosionfx = "fx/fx_truck_explosion.tik"
+	local.jeep.explosionsound = "gas_explode"
+	waitthread spawn_team_symbol local.base ( 73 0 60 ) local.jeep
+	local.coll = waitthread add_collision_ent local.jeep ( 0 0 0 ) ( -115 -50 0 ) ( 105 50 62 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 90 0 35 ) ( 0 0 0 ) ( 89 0 45 ) ( -90 0 0 ) ( -25 25 40 ) ( -25 -25 40 ) local.jeep
+end local.jeep
+
+
+setup_base_gmctruck local.base:
+	local.truck = waitthread add_vehiclemodel local.base model "vehicles/gmctruck.tik" ( 0 0 0 ) ( 0 0 0 ) ( 260 100 80 ) ( -10 0 0 )
+	local.truck.explosionfx = "fx/fx_truck_explosion.tik"
+	local.truck.explosionsound = "gas_explode"
+	waitthread spawn_team_symbol local.base ( 70 0 130 ) local.truck
+	local.coll = waitthread add_collision_ent local.truck ( 0 0 0 ) ( -170 -65 0 ) ( 175 65 160 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 180.5 0 40 ) ( 0 90 0 ) ( 178 0 65 ) ( -90 0 0 ) ( 50 54 40 ) ( 50 -54 40 ) local.truck
+end local.truck
+
+
+setup_base_opeltruck local.base:
+	local.truck = waitthread add_vehiclemodel local.base model "static/vehicle_opeltruck_green.tik" ( 0 0 0 ) ( 0 0 0 ) ( 220 118 80 ) ( -20 3 0 )
+	local.truck.replacemodel = "vehicles/opeltruckgreen_d.tik"
+	local.truck.explosionfx = "fx/fx_truck_explosion.tik"
+	local.truck.explosionsound = "gas_explode"
+	waitthread spawn_team_symbol local.base ( 150 0 87 ) local.truck
+	local.coll = waitthread add_collision_ent local.truck ( 0 0 0 ) ( -160 -60 0 ) ( 40 60 58 ) ( 0 0 0 )
+	local.coll1 = waitthread add_collision_ent local.truck ( 0 0 0 ) ( -160 -60 0 ) ( 40 -40 115 ) ( 0 0 0 )
+	local.coll2 = waitthread add_collision_ent local.truck ( 0 0 0 ) ( -160 40 0 ) ( 40 60 115 ) ( 0 0 0 )
+	local.coll3 = waitthread add_collision_ent local.truck ( 0 0 0 ) ( 30 -50 0 ) ( 90 50 115 ) ( 0 0 0 )
+	local.coll4 = waitthread add_collision_ent local.truck ( 0 0 0 ) ( 35 -50 0 ) ( 160 50 65 ) ( 0 0 0 )
+	local.coll5 = waitthread add_collision_ent local.truck ( 0 0 0 ) ( 35 -30 0 ) ( 160 30 88 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 164 0 40 ) ( 0 90 0 ) ( 163 0 65 ) ( -92 0 0 ) ( 50 54 40 ) ( 50 -54 40 ) local.truck
+end local.truck
+
+
+setup_base_m3 local.base:
+	waitthread spawn_team_symbol local.base ( 40 0 115 )
+	local.htrack = waitthread add_vehiclemodel local.base model "vehicles/m3.tik" ( 0 0 0 ) ( 0 0 0 ) ( 240 120 80 ) ( 0 0 0 )
+	local.htrack.explosionfx = "fx/fx_tank_explosion.tik"
+	local.htrack.explosionsound = "gas_explode"
+	local.coll = waitthread add_collision_ent local.htrack ( 0 0 0 ) ( -177 -65 0 ) ( 140 65 68 ) ( 0 0 0 )
+	local.coll1 = waitthread add_collision_ent local.htrack ( 0 0 0 ) ( -177 -65 0 ) ( -152 65 111 ) ( 0 0 0 )
+	local.coll2 = waitthread add_collision_ent local.htrack ( 0 0 0 ) ( -177 -65 0 ) ( 52 -40 111 ) ( 0 0 0 )
+	local.coll3 = waitthread add_collision_ent local.htrack ( 0 0 0 ) ( -177 40 0 ) ( 52 65 111 ) ( 0 0 0 )
+	local.coll4 = waitthread add_collision_ent local.htrack ( 0 0 0 ) ( 20 -65 0 ) ( 52 65 111 ) ( 0 0 0 )
+	local.coll5 = waitthread add_collision_ent local.htrack ( 0 0 0 ) ( 20 -65 0 ) ( 140 65 85 ) ( 0 0 0 )
+	local.coll6 = waitthread add_collision_ent local.htrack ( 0 0 0 ) ( 20 -65 0 ) ( 177 65 55 ) ( 0 0 0 )
+	waitthread set_positions local.base ( -80.25 48 41 ) ( 0 90 0 ) ( 10 56 75 ) ( -90 -77 0 ) ( -110 0 60 ) ( -50 0 60 ) local.htrack
+end local.htrack
+
+
+setup_base_sdkfz local.base:
+	local.type = randomint 2
+
+	if (local.type == 0)
+	{
+		local.model = "vehicles/sdkfz.tik"
+		local.destmodel = "vehicles/sdkfz_green_d.tik"
+	} else
+	{
+		local.model = "vehicles/sdkfz_afrika.tik"
+		local.destmodel = "vehicles/sdkfz_desert_d.tik"
+	}
+
+	local.htrack = waitthread add_vehiclemodel local.base model local.model ( 0 0 0 ) ( 0 0 0 ) ( 240 120 80 ) ( -40 0 0 )
+	local.htrack.replacemodel = local.destmodel
+	local.htrack.explosionfx = "fx/fx_tank_explosion.tik"
+	local.htrack.explosionsound = "gas_explode"
+	waitthread spawn_team_symbol local.base ( 40 -3 110 ) local.htrack
+	local.coll = waitthread add_collision_ent local.htrack ( 0 -4 0 ) ( -165 -70 0 ) ( 190 70 50 ) ( 0 0 0 )
+	local.coll1 = waitthread add_collision_ent local.htrack ( 0 -4 0 ) ( -165 -70 0 ) ( 55 -35 105 ) ( 0 0 0 )
+	local.coll2 = waitthread add_collision_ent local.htrack ( 0 -4 0 ) ( -165 35 0 ) ( 55 70 105 ) ( 0 0 0 )
+	local.coll3 = waitthread add_collision_ent local.htrack ( 0 -4 0 ) ( -165 -70 0 ) ( -125 70 105 ) ( 0 0 0 )
+	local.coll4 = waitthread add_collision_ent local.htrack ( 0 -4 0 ) ( 25 -70 0 ) ( 55 70 105 ) ( 0 0 0 )
+	local.coll5 = waitthread add_collision_ent local.htrack ( 0 -4 0 ) ( 25 -70 0 ) ( 180 70 85 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 0 48 42 ) ( 0 90 0 ) ( 0 66 68 ) ( -90 -90 0 ) ( -80 -3 40 ) ( -20 -3 40 ) local.htrack
+end local.htrack
+
+/*
+setup_base_kingtank local.base:
+	local.tank = waitthread add_vehicle local.base "vehicles/kingtank.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.tank.replacemodel = "vehicles/kingtank_all_d.tik"
+	local.tank.explosionfx = "fx/fx_tank_explosion.tik"
+	local.tank.explosionsound = "gas_explode"
+	local.tank.destroythread = global/libmef/bases.scr::remove_tank_turret
+	waitthread spawn_team_symbol local.base ( 75 50 110 ) local.tank
+	local.coll = waitthread add_collision_ent local.tank ( 0 0 0 ) ( -290 -115 0 ) ( 160 115 170 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 125 0 77 ) ( -130 0 0 ) ( 125 0 77 ) ( -130 0 0 ) ( -5 60 35 ) ( -5 -60 35 ) local.tank
+end local.tank
+
+
+setup_base_tigertank local.base:
+	local.type = randomint 2
+
+	if (local.type == 0)
+	{
+		local.model = "vehicles/tigertank.tik"
+	} else
+	{
+		local.model = "vehicles/tigertankdsrt.tik"
+	}
+
+	local.tank = waitthread add_vehicle local.base local.model ( 0 0 0 ) ( 0 0 0 )
+	local.tank.replacemodel = "vehicles/tigertank_d.tik"
+	local.tank.explosionfx = "fx/fx_tank_explosion.tik"
+	local.tank.explosionsound = "gas_explode"
+	local.tank.destroythread = global/libmef/bases.scr::remove_tank_turret
+	waitthread spawn_team_symbol local.base ( 75 0 135 ) local.tank
+	local.coll = waitthread add_collision_ent local.tank ( 0 0 0 ) ( -160 -100 0 ) ( 190 100 140 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 165 0 70 ) ( 10 0 0 ) ( 165 0 75 ) ( -170 0 0 ) ( 100 45 28 ) ( 100 -45 28 ) local.tank
+end local.tank
+
+
+remove_tank_turret:
+	local.turret = self QueryTurretSlotEntity 0
+	if (local.turret != NULL)
+	{
+		local.turret remove
+	}
+end
+*/
+
+setup_base_panzer local.base:
+	local.type = randomint 2
+
+	if (local.type == 0)
+	{
+		local.model = "vehicles/panzer_iv.tik"
+		local.destmodel = "vehicles/panzer_iv_d.tik"
+	} else
+	{
+		local.model = "static/vehicle_panzer_iv_europe.tik"
+		local.destmodel = "vehicles/panzer_iv_eud.tik"
+	}
+
+	local.tank = waitthread add_vehiclemodel local.base model local.model ( 0 0 0 ) ( 0 0 0 ) ( 210 148 78 ) ( 15 -5 0 ) ( -134 -74 0 ) ( 134 74 78 )
+	local.tank.replacemodel = local.destmodel
+	local.tank.explosionfx = "fx/fx_tank_explosion.tik"
+	local.tank.explosionsound = "gas_explode"
+	waitthread spawn_team_symbol local.base ( 75 28 100 ) local.tank
+	local.coll = waitthread add_collision_ent local.tank ( 5 0 0 ) ( -190 -90 0 ) ( 145 90 150 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 125 3 63.5 ) ( 19 0 0 ) ( 125 3 71 ) ( -160 0 0 ) ( 55 40 25 ) ( 55 -45 25 ) local.tank
+end local.tank
+
+
+setup_base_shermantank local.base:
+	local.torg = waitthread add_vehiclemodel local.base origin "" ( 0 0 0 ) ( 0 0 0 ) ( 220 130 80 ) ( -10 0 0 )
+	local.torg.replacemodel = "vehicles/shermantank_damaged.tik"
+	local.torg.explosionfx = "fx/fx_tank_explosion.tik"
+	local.torg.explosionsound = "gas_explode"
+	local.tank = waitthread add_target local.torg model "vehicles/shermantank.tik" ( 140 0 0 ) ( 0 0 0 )
+	local.tank notsolid
+	waitthread spawn_team_symbol local.base ( 70 28 100 ) local.torg
+	local.coll = waitthread add_collision_ent local.torg ( 0 0 0 ) ( -150 -70 0 ) ( 160 70 135 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 140 3 63.5 ) ( 19 0 0 ) ( 140 3 69 ) ( -158 0 0 ) ( 60 50 26 ) ( 60 -50 26 ) local.torg
+end local.tank
+
+
+setup_base_fockwulf local.base:
+	local.plane = waitthread add_vehiclemodel local.base model "vehicles/fockwulf.tik" ( 0 0 0 ) ( 0 0 0 ) ( 360 160 80 ) ( 40 0 0 )
+	local.plane notsolid
+	local.plane.replacemodel = "vehicles/fockwulf_d.tik"
+	local.plane.explosionfx = "fx/fx_stuka_explosion.tik"
+	local.plane.explosionsound = "gas_explode"
+	waitthread spawn_team_symbol local.base ( 15 0 140 ) local.plane
+	local.coll = waitthread add_collision_ent local.plane ( 0 0 0 ) ( -280 -40 0 ) ( 260 40 150 ) ( 0 0 0 )
+	local.coll1 = waitthread add_collision_ent local.plane ( 80 0 0 ) ( -55 -280 0 ) ( 65 280 100 ) ( 0 0 0 )
+	local.coll2 = waitthread add_collision_ent local.plane ( -215 0 0 ) ( -25 -100 0 ) ( 25 100 48 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 33 40 63 ) ( -30 0 0 ) ( 0 31 70 ) ( 93 88 0 ) ( 50 50 70 ) ( 50 -50 70 ) local.plane
+end local.plane
+
+
+setup_base_stuka local.base:
+	local.type = randomint 2
+
+	if (local.type == 0)
+	{
+		local.model = "vehicles/stuka.tik"
+		local.destmodel = "vehicles/stuka_d.tik"
+	} else
+	{
+		local.model = "vehicles/stuka-desert.tik"
+		local.destmodel = "vehicles/stukadesrt_d.tik"
+	}
+
+	local.org = waitthread add_vehiclemodel local.base origin "" ( 0 0 0 ) ( 0 0 0 ) ( 290 120 80 ) ( 25 0 0 )
+	local.org.keepmodel = 1
+
+	local.plane = waitthread add_target local.org model local.model ( 0 0 0 ) ( 0 0 0 )
+	local.plane notsolid
+	local.plane.explosionfx = "fx/fx_stuka_explosion.tik"
+	local.plane.explosionsound = "gas_explode"
+
+	local.dorg = waitthread add_target local.org origin "" ( 0 0 -15 ) ( 10 0 5 )
+	local.dorg.replacemodel = local.destmodel
+	local.dorg.dmodelnotsolid = 1
+	
+	waitthread spawn_team_symbol local.base ( 25 0 120 ) local.org
+	local.coll = waitthread add_collision_ent local.org ( 0 0 0 ) ( -220 -20 0 ) ( 205 20 125 ) ( 0 0 0 )
+	local.coll1 = waitthread add_collision_ent local.org ( 40 0 0 ) ( -55 -265 0 ) ( 65 265 95 ) ( 0 0 0 )
+	local.coll2 = waitthread add_collision_ent local.org ( -180 0 0 ) ( -25 -95 0 ) ( 25 95 52 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 0 20 55 ) ( -25 0 10 ) ( -30 18.5 57 ) ( 90 86 0 ) ( 10 40 50 ) ( 10 -40 50 ) local.org
+end local.plane
+
+
+setup_base_higginsboat local.base:
+	local.boat = waitthread add_target local.base model "vehicles/higginsxtrahull.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.door = waitthread add_target local.base model "vehicles/higginsdoor.tik" ( 225 0 310 ) ( 90 0 0 )
+	local.boat notsolid
+	local.door notsolid
+	local.boat.explosionsound = "gas_explode"
+	local.exp1 = waitthread add_target local.base origin "" ( 100 0 46 ) ( 0 0 0 )
+	local.exp2 = waitthread add_target local.base origin "" ( -250 0 80 ) ( 0 0 0 )
+	local.exp1.explosionfx = "animate/fx_explosion_tank.tik"
+	local.exp2.explosionfx = "animate/fx_explosion_tank.tik"
+	waitthread spawn_team_symbol local.base ( -220 0 120 )
+	local.coll = waitthread add_collision_ent local.boat ( 0 0 0 ) ( -305 -100 0 ) ( 280 100 46 ) ( 0 0 0 )
+	local.coll1 = waitthread add_collision_ent local.boat ( 0 0 0 ) ( -305 -100 0 ) ( 280 -60 120 ) ( 0 0 0 )
+	local.coll2 = waitthread add_collision_ent local.boat ( 0 0 0 ) ( -305 60 0 ) ( 280 100 120 ) ( 0 0 0 )
+	local.coll3 = waitthread add_collision_ent local.boat ( 0 0 0 ) ( -305 -100 0 ) ( -50 100 120 ) ( 0 0 0 )
+	local.coll4 = waitthread add_collision_ent local.boat ( 270 0 0 ) ( 0 -90 0 ) ( 100 90 10 ) ( 0 0 0 )
+	local.coll5 = waitthread add_collision_ent local.boat ( 270 0 0 ) ( 0 -90 0 ) ( 80 90 20 ) ( 0 0 0 )
+	local.coll6 = waitthread add_collision_ent local.boat ( 270 0 0 ) ( 0 -90 0 ) ( 60 90 30 ) ( 0 0 0 )
+	waitthread set_positions local.base ( -66 0 101 ) ( 0 90 -10 ) ( -50 0 72 ) ( -90 0 0 ) ( -70 50 60 ) ( -70 -50 60 )
+end local.boat
+
+
+setup_base_v2rocket local.base:
+	waitthread spawn_team_symbol local.base ( 44 0 100 )
+	local.rocket = waitthread add_target local.base model "static/v2.tik" ( 0 0 0 ) ( 0 45 0 )
+	local.rocket notsolid
+	local.rocket.explosionsound = "gas_explode"
+	local.exp1 = waitthread add_target local.base origin "" ( 0 0 20 ) ( 0 0 0 )
+	local.exp2 = waitthread add_target local.base origin "" ( 0 0 200 ) ( 0 0 0 )
+	local.exp3 = waitthread add_target local.base origin "" ( 0 0 400 ) ( 0 0 0 )
+	local.exp1.explosionfx = "animate/fx_explosion_tank.tik"
+	local.exp2.explosionfx = "animate/fx_explosion_tank.tik"
+	local.exp3.explosionfx = "animate/fx_explosion_tank.tik"
+	waitthread add_collision_ent local.rocket ( 0 0 0 ) ( -10 -110 0 ) ( 10 110 220 ) ( 0 0 0 )
+	waitthread add_collision_ent local.rocket ( 0 0 0 ) ( -110 -10 0 ) ( 110 10 220 ) ( 0 0 0 )
+	waitthread add_collision_ent local.rocket ( 0 0 0 ) ( -40 -40 0 ) ( 40 40 170 ) ( 0 45 0 )
+	waitthread add_collision_ent local.rocket ( 0 0 0 ) ( -48 -48 170 ) ( 48 48 870 ) ( 0 45 0 )
+	waitthread set_positions local.base ( 38 0 75 ) ( 0 90 19 ) ( 41 0 75 ) ( -80 0 0 ) ( 55 40 130 ) ( 55 -40 130 )
+end local.rocket
+
+
+setup_base_flak88 local.base:
+	local.flakbase = waitthread add_target local.base model "statweapons/flak88base.tik" ( -7.75 -35.78 0 ) ( 0 90 0 )
+	local.flakbase.keepmodel = 1
+	waitthread add_collision_ent local.flakbase ( 0 0 0 ) ( -100 -26 -50 ) ( 105 26 100 ) ( 0 0 0 )
+	waitthread add_collision_ent local.flakbase ( 50 0 0 ) ( -15 -75 -50 ) ( 15 75 100 ) ( 0 0 0 )
+	local.flak = waitthread add_target local.base model "statweapons/flak88turret.tik" ( 0 0 48 ) ( 0 0 0 ) local.flakbase
+	local.flak.replacemodel = "models/statweapons/flak88_d.tik"
+	local.flak notsolid
+	waitthread spawn_team_symbol local.base ( 0 0 130 ) local.flakbase
+	waitthread set_positions local.base ( 7.75 35.78 64.0 ) ( 0 0 0 ) ( 7.75 35.78 64.0 ) ( -90 -90 0 ) ( 65 40 30 ) ( 65 -40 30 ) local.flakbase
+end local.flak
+
+
+setup_base_nebelwerfer local.base:
+	waitthread spawn_team_symbol local.base ( 60 0 80 )
+	local.nebel = waitthread add_target local.base model "statweapons/nebelwerfer.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.nebel notsolid
+	local.nebel.replacemodel = "statweapons/nebelwerfer_d.tik"
+	local.nebel.explosionfx = "fx/fx_nebelwerfer.tik"
+	local.coll = waitthread add_collision_ent local.nebel ( 0 0 0 ) ( 2 -48 0 ) ( 48 -38 48 ) ( 0 0 0 ) // left wheel
+	local.coll1 = waitthread add_collision_ent local.nebel ( 0 0 0 ) ( 2 38 0 ) ( 48 48 48 ) ( 0 0 0 ) // right wheel
+	local.coll2 = waitthread add_collision_ent local.nebel ( 0 0 0 ) ( -7 -16 42 ) ( 70 16 75 ) ( 0 0 0 ) // tubes
+	local.coll3 = waitthread add_collision_ent local.nebel ( 0 0 0 ) ( 18 -38 20 ) ( 28 38 28 ) ( 0 0 0 ) // axle
+	local.coll4 = waitthread add_collision_ent local.nebel ( 0 0 0 ) ( 18 -16 28 ) ( 48 16 42 ) ( 0 0 0 ) // center support
+	local.coll5 = waitthread add_collision_ent local.nebel ( 0 0 0 ) ( 30 -30 50 ) ( 43 -16 60 ) ( 0 0 0 ) // left box
+	waitthread set_positions local.base ( 35 -25 60 ) ( -8 0 0 ) ( -5 0 52 ) ( 80 0 0 ) ( 50 40 25 ) ( 50 -40 25 )
+end local.nebel
+
+
+setup_base_15cmcannon local.base:
+	waitthread spawn_team_symbol local.base ( -40 2 108 )
+	local.flak = waitthread add_target local.base model "statweapons/15cmcannon.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.flak notsolid
+	local.flak.replacemodel = "statweapons/15cmcannon_d.tik"
+	local.coll = waitthread add_collision_ent local.flak ( 0 0 0 ) ( -60 -60 0 ) ( 70 65 115 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 75 0 63 ) ( 0 90 -20 ) ( 75 0 67 ) ( -105 0 0 ) ( -40 37 13 ) ( -40 -33 13 )
+end local.flak
+
+
+setup_base_20mmflak local.base:
+	waitthread spawn_team_symbol local.base ( -40 0 75 )
+	local.flak = waitthread add_target local.base model "statweapons/20mmflak.tik" ( 0 0 0 ) ( 0 0 0 )
+	local.flak anim 60degrees
+	local.flak notsolid
+	local.flak.replacemodel = "statweapons/20mmflak_d.tik"
+	local.coll = waitthread add_collision_ent local.flak ( 0 0 0 ) ( -110 -35 0 ) ( 10 35 80 ) ( 0 0 0 )
+	waitthread set_positions local.base ( -35 13 50 ) ( 0 0 0 ) ( -65.5 0 49 ) ( 180 0 0 ) ( -40 30 10 ) ( -40 -30 10 )
+end local.flak
+
+
+setup_base_opelflak local.base:
+	local.truck = waitthread add_vehiclemodel local.base model "static/vehicle_opeltruck_green.tik" ( 0 0 0 ) ( 0 0 0 ) ( 220 118 80 ) ( -20 3 0 )
+	local.truck.replacemodel = "vehicles/opeltruckgreen_d.tik"
+	local.truck.explosionfx = "fx/fx_truck_explosion.tik"
+	local.truck.explosionsound = "gas_explode"
+	waitthread spawn_team_symbol local.base ( 150 0 87 ) local.truck
+	local.coll = waitthread add_collision_ent local.truck ( 0 0 0 ) ( -160 -60 0 ) ( 160 60 115 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 164 0 40 ) ( 0 90 0 ) ( 163 0 65 ) ( -92 0 0 ) ( 50 54 40 ) ( 50 -54 40 ) local.truck
+
+	local.flak = waitthread add_target local.truck model "statweapons/20mmflak.tik" ( -40 0 62 ) ( 0 0 0 )
+	local.flak anim 60degrees
+	local.flak notsolid
+	local.dorg = waitthread add_target local.flak origin "" ( 0 0 3 ) ( 0 0 8 )
+	local.dorg.replacemodel = "statweapons/20mmflak_d.tik"
+	local.dorg.dmodelnotsolid = 1
+end local.truck
+
+
+setup_base_sdkfznebel local.base:
+	local.type = randomint 2
+
+	if (local.type == 0)
+	{
+		local.model = "vehicles/sdkfz.tik"
+		local.destmodel = "vehicles/sdkfz_green_d.tik"
+	} else
+	{
+		local.model = "vehicles/sdkfz_afrika.tik"
+		local.destmodel = "vehicles/sdkfz_desert_d.tik"
+	}
+
+	local.htrack = waitthread add_vehiclemodel local.base model local.model ( 0 0 0 ) ( 0 0 0 ) ( 240 120 80 ) ( -40 0 0 )
+	local.htrack.replacemodel = local.destmodel
+	local.htrack.explosionfx = "fx/fx_tank_explosion.tik"
+	local.htrack.explosionsound = "gas_explode"
+	waitthread spawn_team_symbol local.base ( 40 -3 110 ) local.htrack
+	local.coll = waitthread add_collision_ent local.htrack ( 0 0 0 ) ( -165 -65 0 ) ( 180 70 110 ) ( 0 0 0 )
+	waitthread set_positions local.base ( 0 48 42 ) ( 0 90 0 ) ( 0 66 68 ) ( -90 -90 0 ) ( 0 -28 40 ) ( 0 22 40 ) local.htrack
+	local.nebel = waitthread add_target local.htrack model "statweapons/nebelwerfer.tik" ( -100 -5 72 ) ( 0 0 0 )
+	local.nebel notsolid
+	local.nebel.explosionfx = "fx/fx_nebelwerfer.tik"
+	local.nebel surface nebelwerfer1 "+nodraw"
+	local.nebel.destroythread = global/libmef/bases.scr::spawn_destroyed_nebelwerfer
+end local.htrack
+
+
+spawn_destroyed_nebelwerfer:
+	local.dmgd = spawn script_model origin self.origin angles self.angles
+	local.dmgd model "statweapons/nebelwerfer_d.tik"
+	local.dmgd surface nebelwerfer1 "+nodraw"
+end
+
+
+add_collision_ent local.target local.origin local.mins local.maxs local.angles:
+	local.coll = spawn script_model
+	local.coll model "items/dm_50_healthbox.tik"
+
+	local.sizex = (local.maxs[0] - local.mins[0]) * 0.5
+	local.sizey = (local.maxs[1] - local.mins[1]) * 0.5
+	local.sizez = (local.maxs[2] - local.mins[2])
+
+	local.origin = local.origin + ( (local.mins[0] + local.sizex) (local.mins[1] + local.sizey) local.mins[2] )
+	local.mins = ( -local.sizex -local.sizey 0 )
+	local.maxs = ( local.sizex local.sizey local.sizez )
+
+	local.coll.origin = waitthread transform_coords local.target local.origin
+	local.coll.angles = waitthread transform_yaw local.target local.angles
+	local.coll setsize local.mins local.maxs
+	local.coll hide
+
+	if (local.target.collents == NIL)
+	{
+		local.target.collents[0] = NIL
+	}
+
+	local.target.collents[local.target.collents.size] = local.coll
+end local.coll
+
+
+add_target local.base local.type local.model local.origin local.angles local.targetorg:
+	if (local.targetorg != NIL)
+	{
+		local.org = local.targetorg
+	} else
+	{
+		local.org = local.base
+	}
+	
+	if (local.type == "tank")
+	{
+		local.target = spawn VehicleTank model local.model
+		local.target nodamage
+	} else if (local.type == "tiki")
+	{
+		local.target = spawn local.model
+	} else if (local.type == "origin")
+	{
+		local.target = spawn script_origin
+	} else
+	{
+		local.target = spawn script_model
+		local.target model local.model
+	}
+	
+	waitthread transform_obj local.target local.org local.origin local.angles
+	waitthread append_target local.base local.target
+end local.target
+
+/*
+add_vehicle local.base local.model local.origin local.angles local.corners local.corneroffset local.mins local.maxs:
+	local.vehicle = waitthread add_target local.base tiki local.model local.origin local.angles
+	if (local.mins != NIL && local.maxs != NIL)
+	{
+		local.vehicle setsize local.mins local.maxs
+	}
+	
+	if (local.corners != NIL && local.corneroffset != NIL)
+	{
+		local.vehicle VehicleWheelCorners local.corners local.corneroffset
+	}
+	
+	waitframe
+end local.vehicle
+*/
+
+add_vehiclemodel local.base local.type local.model local.origin local.angles local.corners local.corneroffset local.mins local.maxs:
+	if (level.mef_setbases)
+	{
+		local.vehicle = waitthread spawn_vehicle local.base local.type local.model local.origin local.angles local.corners local.corneroffset local.mins local.maxs
+	} else
+	{
+		local.vehicle = waitthread add_target local.base local.type local.model local.origin local.angles
+		local.vehicle notsolid
+	}
+end local.vehicle
+
+
+spawn_vehicle local.base local.type local.model local.origin local.angles local.corners local.corneroffset local.mins local.maxs:
+	local.vehicle = spawn VehicleTank model "fx/dummy.tik"
+	waitthread transform_obj local.vehicle local.base local.origin local.angles
+	local.vehicle nodamage
+
+	if (local.mins == NIL)
+	{
+		local.mins = ( 0 0 0 )
+	}
+	
+	if (local.maxs == NIL)
+	{
+		local.maxs = ( 0 0 0 )
+	}
+	
+	local.vehicle setsize local.mins local.maxs
+	local.vehicle VehicleWheelCorners local.corners local.corneroffset
+
+	waitframe
+
+	local.ent = waitthread add_target local.base local.type local.model local.origin local.angles
+	local.ent.origin = local.vehicle.origin
+	local.ent.angles = local.vehicle.angles
+	
+	println ("MODEL: " + local.model)
+	println ("ORIGIN: " + local.ent.origin)
+	println ("ANGLES: " + local.ent.angles)
+	
+	if (local.type == "model")
+	{
+		local.ent notsolid
+	}
+	local.vehicle remove
+end local.ent
+
+
+append_target local.base local.target:
+	if (local.base.bombtargets == NIL)
+	{
+		local.base.bombtargets[0] = NIL
+	}
+
+	local.base.bombtargets[local.base.bombtargets.size] = local.target
+end
+
+
+spawn_team_symbol local.base local.origin local.targetorg:
+	if (local.targetorg != NIL)
+	{
+		local.org = local.targetorg
+	} else
+	{
+		local.org = local.base
+	}
+
+	local.beamorg = waitthread transform_coords local.org local.origin
+	local.symbol = spawn func_beam
+	local.symbol.origin = local.beamorg
+	local.symbol endpoint (local.beamorg + ( 0 0 15 ))
+	local.symbol minoffset 0.0
+	local.symbol maxoffset 0.0
+	local.symbol color ( 1.0 1.0 1.0 )
+	local.symbol scale 5.0
+	
+	if (local.base.team == "allies" || local.base.team == "axis")
+	{
+		local.symbol shader ("textures/hud/" + local.base.team + "_headicon")
+	}
+	
+	local.symbol numsegments 1
+	local.symbol alpha 0.75
+	local.symbol life 0
+	local.symbol activate
+	local.symbol.removemodel = 1
+	local.base.symbol = local.symbol
+end local.symbol
+
+
+set_positions local.base local.bomborg local.bombang local.buttonorg local.buttonang local.alflagorg local.axflagorg local.targetorg:
+	if (local.targetorg != NIL)
+	{
+		local.org = local.targetorg
+	} else
+	{
+		local.org = local.base
+	}
+
+	local.base.bomborg = waitthread transform_coords local.org local.bomborg
+	local.base.bombang = waitthread transform_angles local.org local.bombang
+	local.base.buttonorg = waitthread transform_coords local.org local.buttonorg
+	local.base.buttonang = waitthread transform_angles local.org local.buttonang
+	local.base.alflagorg = waitthread transform_coords local.org local.alflagorg
+	local.base.axflagorg = waitthread transform_coords local.org local.axflagorg
+end
+
+
+select_random_playermodel local.team:
+	if (local.team == "allies")
+	{
+		if (level.mef_modernwarfare)
+		{
+			local.models[0] = "allied_m-war_portuguese_paratroops2"::14.75
+			local.models[1] = "allied_m-war_russian_spetsnaz_3"::15.5
+			local.models[2] = "allied_m-war_us-marines"::15
+		} else
+		{
+			local.models[0] = "allied_airborne"::15.5
+			local.models[1] = "allied_manon"::12.25
+			local.models[2] = "american_army"::15
+		}
+	} else if (local.team == "axis")
+	{
+		if (level.mef_modernwarfare)
+		{
+			local.models[0] = "axis_m-war_ira"::15
+			local.models[1] = "axis_m-war_iraqi_soldier_camo"::14.8
+			local.models[2] = "axis_m-war_scientist"::15.5
+		} else
+		{
+			local.models[0] = "german_panzer_tankcommander"::15.5
+			local.models[1] = "german_afrika_private"::14.5
+			local.models[2] = "german_wehrmacht_soldier"::14.5
+		}
+	} else
+	{
+		local.models[0] = "allied_manon"::12.25
+	}
+	
+	local.model = local.models[randomint(local.models.size)]
+end (("player/" + local.model[1] + ".tik")::local.model[2])
+
+
+transform_obj local.obj local.base local.origin local.angles:
+	local.obj.origin = waitthread transform_coords local.base local.origin
+	local.obj.angles = waitthread transform_angles local.base local.angles
+end
+
+
+transform_coords local.o local.org:
+	local.x = angles_toforward local.o.angles
+	local.y = angles_toleft local.o.angles
+	local.z = angles_toup local.o.angles
+	local.result = local.o.origin + (local.x * local.org[0]) + (local.y * local.org[1]) + (local.z * local.org[2])
+end local.result
+
+
+transform_angles local.o local.ang:
+	local.result = ( 0 0 0 )
+	local.result[0] = waitthread rotate_angle local.o.angles[0] local.ang[0]
+	local.result[1] = waitthread rotate_angle local.o.angles[1] local.ang[1]
+	local.result[2] = waitthread rotate_angle local.o.angles[2] local.ang[2]
+end local.result
+
+
+transform_yaw local.o local.ang:
+	local.result = ( 0 0 0 )
+	local.result[1] = waitthread rotate_angle local.o.angles[1] local.ang[1]
+end local.result
+
+
+rotate_angle local.start local.deg:
+	local.start = local.start + local.deg
+	if (local.start < 0)
+	{
+		while (local.start < 0)
+		{
+			local.start = local.start + 360
+		}
+	} else if (local.start > 360)
+	{
+		while (local.start > 360)
+		{
+			local.start = local.start - 360
+		}
+	}
+end local.start

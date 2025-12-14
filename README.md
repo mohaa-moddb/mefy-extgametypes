@@ -1,17 +1,18 @@
 # Mefy's Extended-Gametypes
 
-Server-Side Extended-Gametypes MOD Version 1.0.0 For Medal of Honor (06-02-04)
+Server-Side Extended-Gametypes MOD Version 1.1.4 For Medal of Honor (11-15-04)
 by Mark Follett (Mefy)
 mef123@geocities.com
 www.planetmedalofhonor.com/mefy
 
 ## Description
 
-This mod allows you to host four new gametypes for the stock Medal of Honor
-maps: Capture-The-Flag, Freeze-Tag, Freeze-Tag-Objective, and Voodoo-Dolls.
-A brief description of each gametype:
+This mod allows you to host seven new gametypes for the stock Medal of Honor
+maps: Capture-The-Flag, Freeze-Tag, Freeze-Tag-Objective, Freeze-Tag-CTF,
+Freeze-Tag-TOW, Demolition, and Freeze-Tag-Demolition. A brief description
+of each gametype:
 
-- Capture-The-Flag* (for all Allied Assault maps)
+- Capture-The-Flag* (for all Allied Assault and Spearhead maps)
     To score a point your team must capture and bring the enemy team's
     flag to your own team's base and hold it there for 15 seconds. The
     first team to score 4 points, or the team with the most points at
@@ -34,13 +35,33 @@ A brief description of each gametype:
     freeze the entire attacking team or successfully defend their
     objectives for the entire duration of the round.
 
-- Voodoo-Dolls* (for Stalingrad only)
-    Each team has a doll with a bomb attached to its chest that they
-    must defend from the other team. The team that finds and destroys
-    the opponent's voodoo doll while also successfully defending their
-    own voodoo doll wins the round. If time runs out, the team with
-    most kills wins the round. The dolls appear in random locations each
-    round.
+- Freeze-Tag-CTF* (for all Allied Assault and Spearhead maps)
+    This is a Capture-The-Flag game with Freeze-Tag type respawning.
+    Each team must capture the flag the most times to win the round.
+    While both flags are at their own bases, Freeze Tag respawning will
+    be active. Once a flag is removed from its base by the opposing
+    team, then full respawning will be enabled until it is returned
+    back. If a team is killed while in Freeze-Tag respawning mode, then
+    the other team will have several free seconds to advance before the
+    killed team will respawn.
+
+- Freeze-Tag-TOW* (for all Spearhead and Breakthrough TOW maps)
+    This is a Tug-of-War game with Freeze-Tag type respawning. Each
+    team must complete its objectives to win the match like a regular
+    Tug-of-War game. When an objective is captured, both teams will be
+    automatically melted. If a team is killed, then the other team
+    will have several free seconds to advance towards their objectives
+    before the killed team respawns. Once a team's base has been
+    destroyed they will lose the game if all their players are killed. 
+
+- Demolition* (for all Allied Assault maps)
+    This is similar to an objective game except both teams have a base
+    to defend. The team that finds and destroys the opponent's base while
+    also successfully defending their own base wins the round.
+
+- Freeze-Tag-Demolition* (for all Allied Assault maps)
+    This is Demolition mode with Freeze-Tag-Respawning. Kill the enemy
+    team or destroy their base to win the round.
 
 The rules of each gametype can be customized by setting cvars- see below for
 instructions. The mod is also designed to allow modders to easily set up the
@@ -49,15 +70,14 @@ gametypes for custom maps.
 This mod is a server-side mod, meaning clients do not have to download anything
 to play it on your server!
 
-
 ## Installation
 
 There are currently 2 versions available for download. One is for Allied
 Assault, and the other is for Spearhead and Breakthrough. Make sure you have
 the correct version:
 
-user-mefy-extgametypes-1.0.0-AA.pk3 (for Allied Assault)
-user-mefy-extgametypes-1.0.0-SH.pk3 (for Spearhead and Breakthrough)
+user-mefy-extgametypes-1.1.4-AA.pk3 (for Allied Assault)
+user-mefy-extgametypes-1.1.4-SH.pk3 (for Spearhead and Breakthrough)
 
 For Allied Assault, place the pk3 file in your MOHAA/main directory.
 For Spearhead, place the pk3 in your MOHAA/mainta directory.
@@ -70,17 +90,21 @@ If the map is one of the stock dm maps (mohdm#) or Spearhead tow maps, then run
 that map in Round-Based-Match mode in order to enable the new gametypes. If the
 map is one of the stock objective maps (obj_team#), then run the map in
 Objective mode. Running a stock dm map in Free-For-All or Team-Match modes will
-make the map function as normal.
+make the map function as normal. For Freeze-Tag-TOW, run the map in
+Tug-of-War mode.
 
-The default gametype that will be played is Freeze-Tag for the dm maps, and
-Freeze-Tag-Objective for the obj maps. If you want to activate the other
-gametypes for a map, you must set the cvar "g_extgametype" to the gametype that
-you want to play:
+The default gametype that will be played is Freeze-Tag for the dm maps,
+Freeze-Tag-Objective for the obj maps, and Freeze-Tag-TOW for the tow maps. If
+you want to activate the other gametypes for a map, you must set the cvar
+"g_extgametype" to the gametype that you want to play:
 
   set g_extgametype ctf   // Capture-The-Flag
   set g_extgametype ft    // Freeze-Tag
   set g_extgametype ftobj // Freeze-Tag-Objective
-  set g_extgametype vd    // Voodoo-Dolls
+  set g_extgametype ftctf // Freeze-Tag-CTF
+  set g_extgametype fttow // Freeze-Tag-TOW
+  set g_extgametype dem   // Demolition
+  set g_extgametype ftdem // Freeze-Tag-Demolition
 
 If you want to play Round-Based-Match instead of one of the new gametypes:
 
@@ -117,11 +141,24 @@ with multiple gametypes:
   ctf.cfg            - Capture-The-Flag config
   ft.cfg             - Freeze-Tag config
   ftobj.cfg          - Freeze-Tag-Objective config
-  vd.cfg             - Voodoo-Dolls config
+  ftctf.cfg          - Freeze-Tag-CTF config
+  fttow.cfg          - Freeze-Tag-TOW config
+  dem.cfg            - Demolition config
+  ftdem.cfg          - Freeze-Tag-Demolition config
   mixed-types-aa.cfg - Mixed Gametypes config for Allied Assault
   mixed-types-sh.cfg - Mixed Gametypes config for Spearhead and Breakthrough
                        only
 
+## Special Notes
+
+For Freeze-Tag-TOW, this mod will automatically turn off the built-in respawning
+delay feature of Spearhead and Breakthrough (sv_team_spawn_interval will be set
+to 0), since this interferes with Freeze-Tag respawning. Do not turn it back on
+while in the middle of a Freeze-Tag-TOW round or players may be able to hold up
+the round if they don't spawn into the game. If you are hosting a mixed gametype
+rotation where you want respawn delay on other maps in the rotation, use a VSTR
+rotation where you set "sv_team_spawn_interval" back to the desired value for
+the specific map.
 
 ## Troubleshooting
 
@@ -143,17 +180,43 @@ is a list of cvars that can be set for each gametype. NOTE that you do not
 need to set any of these cvars to get the game to run-- they are only
 meant for changing the rules from the default settings.
 
+## Global CVARS
+
+- "g_mef_disable" Default: 0
+    Set this to 1 in order to disable the Extended Gametypes mod completely.
+
+- "g_mef_team_spawn_interval" Default: 0
+    This controls respawning delay for a Capture-The-Flag or Demolition
+    game and works similar to the Spearhead and Breakthrough wave respawning
+    feature. Set this to the number of seconds a player must wait after they
+    are killed before they can respawn again. Set this to 0 to disable wave
+    respawning.
+
+- "g_mef_observe" Default: "bodies"
+    This setting controls how players are allowed to spectate the game while
+    they are dead. The format is a list of options separated by spaces:
+      "freefloat" -- Allows players to freefloat in the map while they are
+                     dead.
+      "bodies"    -- Allows players to spectate their own team's frozen
+                     bodies while they are dead.
+      "builtin"   -- Enables the "built-in" spectating mode. In this mode
+                     you will be able to see dead player names as red on the
+                     scoreboard and gun turrets will be available in the map.
+                     However, you will no longer be able to free-float while
+                     spectating or be able to spectate from frozen bodies.
+      "none"      -- Set the cvar to "none" to disable both freefloating and
+                     spectating of frozen bodies.
+
+- "g_cinematics_off" Default: 0
+    Set this cvar to 1 in order to disable the cinematics at the end of a
+    Tug-of-War or Freeze-Tag-TOW game.
+
+
 ## Freeze-Tag and Freeze-Tag-Objective CVARS
 
 Use the "g_ft_<setting>" cvars to control the settings for a Freeze-Tag
 game. Use the "g_ftobj_<setting>" cvars to control the settings for a
 Freeze-Tag-Objective game.
-
-- "g_ft_disable" and "g_ftobj_disable" Default: 0
-    Set this to 1 in order to disable Freeze-Tag or Freeze-Tag-Objective
-    mode. If the map running is a dm map, then it will run in
-    Round-Based-Match mode. If the map running is an obj map,  then it will
-    begin a standard objective game.
 
 - "g_ft_suddendeath" and "g_ftobj_suddendeath" Default: 1
     Set this to the number of minutes you want for the sudden death round.
@@ -165,34 +228,46 @@ Freeze-Tag-Objective game.
     be 8 minutes of normal Freeze-Tag, then 2 minutes of sudden death. Set
     this to 0 to disable sudden death.
 
-- "g_ft_melttime" and "g_ftobj_melttime" Default: 20
+## Generic CVARS for all Freeze-Tag gametypes
+
+These cvars apply to all gametypes with Freeze-Tag respawning: Freeze-Tag,
+Freeze-Tag-Objective, Freeze-Tag-CTF, and Freeze-Tag-TOW. Use the
+"g_ft_<setting>" cvars to control the settings for a Freeze-Tag game. Use
+the "g_ftobj_<setting>" cvars to control the settings for a
+Freeze-Tag-Objective game. For Freeze-Tag-CTF, use the "g_ftctf_<setting>"
+cvars. For Freeze-Tag-TOW, use the "g_fttow_<setting>" cvars.
+
+- "g_ft_melttime", "g_ftobj_melttime", "g_ftctf_melttime", and
+  "g_fttow_melttime" Default: 20
+
     This cvar controls the amount of time it takes to melt a player (in
     tenths of a second). This is how much time it would take to melt
     if a player was standing right next to a frozen body. If you are
     using the melting laser to melt a body, then the time will increase
     with the distance you are from the body.
 
-- "g_ft_meltradius" and "g_ftobj_meltradius" Default: 100
+
+- "g_ft_meltradius", "g_ftobj_meltradius", "g_ftctf_meltradius", and
+  "g_fttow_meltradius" Default: 100
+
     This controls how close you must be standing to a frozen body in order
     to melt it (in map units). 
 
-- "g_ft_meltgun" and "g_ftobj_meltgun" Default: 1
+
+- "g_ft_meltgun", "g_ftobj_meltgun", "g_ftctf_meltgun", and
+  "g_fttow_meltgun" Default: 1
+
     Set this to 0 to disable the melting laser. Players would then have to
     stand next to a frozen body to melt it.
 
-- "g_ft_allowjoin" and "g_ftobj_allowjoin" Default: 1
-    When set to 1, players will be able to join the game in the middle of the
-    round. When they join they will start out as a frozen body. If set to 0,
-    players will only be able to join the game if they enter within the
-    join time set by the server (controlled by the cvar 'g_allowjointime'),
-    similar to a Round-Based-Match or Objective-Match game. Note that this
-    mod will give players a minimum of 30 seconds to join the game after a
-    new map loads regardless of what 'g_allowjointime' is set to.
 
-- "g_ft_announce" and "g_ftobj_announce" Default: "frozen melted bodycodes"
+- "g_ft_ftannounce", "g_ftobj_ftannounce", "g_ftctf_ftannounce", and
+  "g_fttow_ftannounce" Default: "hudmessages frozen melted bodycodes"
+
     This setting controls the announcing of the frozen body locations for
     given events. The format is the list of events in which to announce the
     location. The possible events are:
+      "hudmessages" -- Announces when a player is frozen or melted.
       "frozen"    -- Announce the body's location when a player is frozen.
       "melted"    -- Announce the body's location when a player is melted.
       "bodycodes" -- Display all of the frozen body locations in abbreviated
@@ -204,25 +279,23 @@ Freeze-Tag-Objective game.
     obj_team4). If a map doesn't have a description available then you will
     only get generic announcements without locations.
 
-- "g_ft_observe" and "g_ftobj_observe" Default: "bodies"
-    This setting controls how players are allowed to spectate the game while
-    they are frozen. The format is a list of options separated by spaces:
-      "freefloat" -- Allows players to freefloat in the map while they are
-                     frozen.
-      "bodies"    -- Allows players to spectate their own team's frozen
-                     bodies while they are frozen.
-      "none"      -- Set the cvar to "none" to disable both freefloating and
-                     spectating of frozen bodies.
+## Capture-The-Flag and Freeze-Tag-CTF CVARS
 
-## Capture-The-Flag CVARS
+Use the "g_ctf_<setting>" cvars to control the settings for a Capture-The-Flag
+game. Use the "g_ftctf_<setting>" cvars to control the settings for a
+Freeze-Tag-CTF game.
 
-- "g_ctf_disable" Default: 0
-    Set this to 1 in order to disable Capture-The-Flag mode. If the map
-    running is a dm map, then it will run in Round-Based-Match mode. If
-    the map running is an obj map,  then it will begin a standard objective
-    game.
+- "g_ctf_respawn" Default: 1
+    Set this cvar to 0 in order to enable a non-respawning Capture-The-Flag
+    game. While both flags are at their home bases, respawning will be
+    disabled. Once a flag is captured from it's home base, then respawning
+    will be enabled in order to allow that flag's team to re-capture it
+    before the enemy team runs it back to score. If a team is killed while
+    in non-respawning mode, the other team will have several free seconds
+    in order to advance before the killed team will respawn. This cvar has
+    no effect on a Freeze-Tag-CTF game.
 
-- "g_ctf_pointlimit" Default: 4
+- "g_ctf_pointlimit" and "g_ftctf_pointlimit" Default: 4
     This sets the number of points a team must score in order to win a
     round. If time runs out before the point limit is reached, then the
     team with the most points will be the winner. Setting this to 0 will
@@ -230,7 +303,7 @@ Freeze-Tag-Objective game.
     winner. Use the standard 'roundlimit' cvar to control the length of
     the round. The default round time is 12 minutes.
 
-- "g_ctf_suddendeath" Default: 5
+- "g_ctf_suddendeath" and "g_ftctf_suddendeath" Default: 5
     If time runs out and the score is tied, a sudden death round will
     begin. The next team to score will win the round. Set this option to
     the number of minutes the sudden death round should last. If the sudden
@@ -238,7 +311,7 @@ Freeze-Tag-Objective game.
     round will occur (see below). Setting this to 0 will start a final
     sudden death round immediately.
 
-- "g_ctf_fsuddendeath" Default: 3
+- "g_ctf_fsuddendeath" and "g_ftctf_fsuddendeath" Default: 3
     If time runs out in sudden death, then a final sudden death round will
     begin. This is the same as sudden death except that respawning will be
     disabled. The next team to score or kill all of the enemy team will win
@@ -247,25 +320,12 @@ Freeze-Tag-Objective game.
     score still tied and players still alive, then a draw will occur.
     Setting this to 0 will force a draw immediately.
 
-- "g_ctf_alliedbase" Default: map-specific
-    Set this in order to change the location of the allied base. The format
-    is as follows: "<x-coord> <y-coord> <z-coord> <angle>". For example, a
-    value of "297 -2115 -22.62 180" will place the allied base at
-    ( 297 -2115 -22.62 ) and it will be facing at an angle of 180.
-    You will most likely want to set this for a specific map. See the
-    section on "Map-Specific Customization" for instructions on how to
-    do this.
-
-- "g_ctf_axisbase" Default: map-specific
-    Set this in order to change the location of the axis base. The format
-    is the same as 'alliedbase'.
-
-- "g_ctf_returnboth" Default: 0
+- "g_ctf_returnboth" and "g_ftctf_returnboth" Default: 0
     Set this to 1 in order to require a team to bring both flags to their
     own base in order to score a point. When set to 0, they only have to
     bring the enemy team's flag to their own base to score.
 
-- "g_ctf_countdown" Default: 15
+- "g_ctf_countdown" and "g_ftctf_countdown" Default: 15
     This sets the number of seconds a team must hold the flags at their
     base in order to score a point. Setting this to 0 will cause them to
     instantly score when the flags are brought home.
@@ -275,7 +335,7 @@ Freeze-Tag-Objective game.
     guard their base well in order to hold off the opposing team. Set this
     to a small value to make scoring easy.
 
-- "g_ctf_capturepress" Default: 20
+- "g_ctf_capturepress" and "g_ftctf_capturepress" Default: 20
     This sets the duration of the button press for capturing a flag from
     the enemy's base (in tenths of a second). Setting this to -1 means that
     a button press is not required- you can walk up to the flag and capture
@@ -288,7 +348,7 @@ Freeze-Tag-Objective game.
     be too easy for the opposing team to re-capture their flag and prevent
     a score.
 
-- "g_ctf_returnpress" Default: 15
+- "g_ctf_returnpress" and "g_ftctf_returnpress" Default: 15
     This sets the duration of the button press for returning a flag to home
     base (in tenths of a second). Setting this to -1 means a button press
     is not required- simply walk up to the spot where the flag should go
@@ -297,7 +357,7 @@ Freeze-Tag-Objective game.
     Set this to a large value to make it difficult to return a flag to home
     base, and keep the snipers happy.
 
-- "g_ctf_drophold" Default: -1
+- "g_ctf_drophold" and "g_ftctf_drophold" Default: -1
     This sets how long a player must hold the 'use' key in order to drop a
     flag (in tenths of a second). Setting this to -1 will disable intentional
     flag dropping.
@@ -307,7 +367,7 @@ Freeze-Tag-Objective game.
     allow players to intentionally hide a flag from the opposing team, or
     allow a player to hand off their flag to a teammate.
 
-- "g_ctf_friendlyreturn" Default: 7
+- "g_ctf_friendlyreturn" and "g_ftctf_friendlyreturn" Default: 7
     This determines how much time (in seconds) after a player captures their
     own team's flag that it will return automatically to their own base.
     Setting this to 0 will cause the flag to immediately return home. Setting
@@ -319,7 +379,7 @@ Freeze-Tag-Objective game.
     to hide their own flag by having a teammate carry the flag and hide
     somewhere.
 
-- "g_ctf_groundreturn" Default: 25
+- "g_ctf_groundreturn" and "g_ftctf_groundreturn" Default: 25
     This determines how much time (in seconds) after a flag sits on the ground
     that it will automatically return to its base. Setting this to 0 will
     cause the flag to immediately return home. Setting this to -1 means that
@@ -332,7 +392,12 @@ Freeze-Tag-Objective game.
     recommended-- the flag could potentially be lost somewhere for the
     remainder of the round.
 
-- "g_ctf_dropdelay" Default: 20
+- "g_ctf_enemyreturn" and "g_ftctf_enemyreturn" Default: -1
+    This determines how much time (in seconds) after a flag is captured by
+    the enemy team that it will automatically return to its base. Setting this
+    to -1 means that the flag will not return home.
+
+- "g_ctf_dropdelay" and "g_ftctf_dropdelay" Default: 20
     This sets the amount of time (in tenths of a second) after a flag is
     dropped that it cannot be picked up by any player. The flag will be
     semi-transparent while it is disabled.
@@ -341,7 +406,7 @@ Freeze-Tag-Objective game.
     fight over a flag once its dropped. Setting to 0 is not recommended
     and may make certain functions not work.
 
-- "g_ctf_announce" Default: "dropped atbase"
+- "g_ctf_announce" and "g_ftctf_announce" Default: "dropped atbase"
     This setting controls the announcing of the flag positions for given
     events. The format is the list of events in which to announce the flag
     position. The possible events are:
@@ -365,7 +430,7 @@ Freeze-Tag-Objective game.
     Setting these options will keep the game moving forward by showing
     players where the flags are.
 
-- "g_ctf_announcefreq" Default: 8
+- "g_ctf_announcefreq" and "g_ftctf_announcefreq" Default: 8
     If announcing the flag position when "captured" is enabled, this
     setting controls the frequency that the flag position is updated.
     Set to the number of seconds between updates of the flag position.
@@ -376,26 +441,45 @@ Freeze-Tag-Objective game.
     carrier to hide or stay alive. Set this to a large value to give
     them a chance but not allow them to completely hide.
 
-## Voodoo-Dolls CVARS
+## Demolition and Freeze-Tag-Demolition CVARS
 
-- "g_vd_disable" Default: 0
-    Set this to 1 in order to disable Voodoo-Dolls mode. If the map
-    running is a dm map, then it will run in Round-Based-Match mode. If
-    the map running is an obj map,  then it will begin a standard objective
-    game.
+Use the "g_dem_<setting>" cvars to control the settings for a Demolition
+game. Use the "g_ftdem_<setting>" cvars to control the settings for a
+Freeze-Tag-Demolition game.
 
-- "g_vd_settime" Default: 50
+- "g_dem_respawn" Default: 0 (1 for Stalingrad)
+    Set this cvar to 1 in order to enable a full respawning Demolition
+    game. This cvar has no effect on a Freeze-Tag-Demolition game.
+
+- "g_dem_settime" and "g_ftdem_settime" Default: 50
     Set the amount of time (in tenths of a second) it takes to plant a bomb.
 
-- "g_vd_defusetime" Default: 35
+- "g_dem_defusetime" and "g_ftdem_defusetime" Default: 35
     Set the amount of time (in tenths of a second) it takes to defuse a bomb.
 
-- "g_vd_ticktime" Default: 60
+- "g_dem_ticktime" and "g_ftdem_ticktime" Default: 45 (60 for Stalingrad)
     Set the amount of time (in seconds) it takes for a bomb to explode.
 
-- "g_vd_activatedelay" Default: 20
+- "g_dem_activatedelay" and "g_ftdem_activatedelay" Default: 20
     Set the amount of time (in seconds) before the bombs become activated at
     the start of the round.
+
+- "g_dem_attacker" and "g_ftdem_attacker" Default: "both"
+    This determines which team will be the attacking team and which team
+    will be the defending team. The possible options are:
+      "both"   -- enables a standard double-objective game where both teams
+                  must try to blow up the other team's base
+      "allies" -- the allies must blow up the axis team's base
+      "axis"   -- the axis must blow up the allied base
+      "swap"   -- swaps between the axis team and allied team attacking each
+                  round
+
+- "g_dem_suddendeath" and "g_ftdem_suddendeath" Default: 1
+    Set this to the number of minutes you want for the sudden death round.
+    Once sudden death begins, players will no longer be able to respawn.
+    If players are still alive after the sudden death round completes,
+    the team with more players alive will win the round. Set this to 0 to
+    disable sudden death.
 
 
 ## Map-Specific Customization
@@ -404,19 +488,18 @@ The game can be further customized by having map-specific rules. In order
 to do this, set a cvar named "g_<gametype>_<mapname>_settings" to a list of
 settings to be used for the map. For example:
 
-   set g_ctf_mohdm2_settings "returnboth: 1 alliedbase: 297 -2115 -22.62 180 axisbase: -3237 270 24.97 0 drophold: 20"
+   set g_ctf_mohdm2_settings "returnboth: 1 drophold: 20"
 
-will adjust the Capture-The-Flag rules for Destroyed Village to place the
-bases in new locations, require players to return both flags to their base,
-and enable intentional flag dropping.
+will adjust the Capture-The-Flag rules for Destroyed Village to require players
+to return both flags to their base and enable intentional flag dropping.
 
 Another example:
 
-  set g_ft_mohdm1_settings "meltgun: 0 melttime: 30 announce: none observe: none"
+  set g_ft_mohdm1_settings "meltgun: 0 melttime: 30 ftannounce: none"
 
 will adjust the Freeze-Tag settings for Southern France to disable the melting
-laser, set the melting time to 3 seconds, disable all announcing of body locations,
-and prevent spectators from freefloating or viewing from frozen bodies.
+laser, set the melting time to 3 seconds, and disable all announcing of body
+locations.
 
 If a map-specific setting is set, it will override the general setting
 cvar. You can review the current settings during any game by reading
@@ -431,37 +514,105 @@ custom map. The library files are as follows:
   /global/libmef/bases.scr
   /global/libmef/bomb.scr
   /global/libmef/ctf.scr
+  /global/libmef/dem.scr
   /global/libmef/ft.scr
+  /global/libmef/hud.scr
   /global/libmef/mapdesc.scr
+  /global/libmef/respawn.scr
   /global/libmef/spawn.scr
+  /global/libmef/tow.scr
   /global/libmef/util.scr
-  /global/libmef/vd.scr
 
 You will then need to modify your map script to initialize the new gametypes.
 Use one of the stock map script files included in this map pack as a template
-for your own map's script file. The map script file for mohdm3 (Remagen) is the
-simplest one to use as a template-- the axis and allied bases for CTF are in
-the same position every round. Check out some of the others for more complex
-examples that show you how to place the CTF bases in random locations each
-round. Also see the mod forums for a tutorial on how to set up a map script
-for the new gametypes.
-
+for your own map's script file. Also see the mod forums for a tutorial on how
+to set up a map script for the new gametypes.
 
 ## Other useful cvars
 
-g_ctf_version -- is set to which version of CTF you are running
-g_ft_version  -- is set to which version of FT you are running
-g_vd_version  -- is set to which version of VD you are running
+g_ctf_version -- is set to which version of CTF or FTCTF you are running
+g_ft_version  -- is set to which version of FT, FTOBJ, and FTTOW you are running
+g_dem_version -- is set to which version of DEM or FTDEM you are running
 g_ctf_currentsettings   -- lists the current settings for CTF
 g_ft_currentsettings    -- lists the current settings for FT
 g_ftobj_currentsettings -- lists the current settings for FTOBJ
-g_vd_currentsettings    -- lists the current settings for VD
+g_ftctf_currentsettings -- lists the current settings for FTCTF
+g_fttow_currentsettings -- lists the current settings for FTTOW
+g_dem_currentsettings   -- lists the current settings for DEM
+g_ftdem_currentsettings -- lists the current settings for FTDEM
 g_mef_devmode -- Set this to 1 to enable the mod developer mode. This will
                  start the round immediately so you can see where the base
-                 locations are for CTF or VD. Useful if you want to tweak
+                 locations are for CTF or DEM. Useful if you want to tweak
                  settings or change base locations by yourself.
 
 ## Changelog
+
+### Extended-Gametypes 1.1.4 (11/15/04):
+- Capture-The-Flag: Fixed the bug where vehicle bases would vanish.
+- All gametypes: Fixed bug where you could set bombs and press buttons behind walls.
+- Demolition: Set up this gametype for all Allied Assault stock maps.
+- Capture-The-Flag: Added more base positions for all Allied Assault stock maps.
+- Demolition: The game now announces when a team's base is destroyed.
+- Freeze-Tag: Added new option to g_ft_ftannounce called "hudmessages". Not including this will disable the "Allied/Axis player frozen/melted" messages.
+- Round-Based-Match: Added fix so players on opposite teams no longer spawn next to each other on mohdm1, mohdm4, mohdm6, and mohdm7 at the beginning of a round.
+- Misc cvar changes:
+    - Removed the g_ctf_alliedbase, g_ftctf_alliedbase, g_ctf_axisbase, and g_ftctf_axisbase cvars.
+
+### Extended-Gametypes 1.1.3 (10/16/04):
+- Capture-The-Flag: Fixed the no-bomb-ticking-sound bug.
+- Demolition: The game is non-respawning as default now, except for Stalingrad which has full respawning.
+- Demolition: Default tick time is 45 seconds, except for Stalingrad which remains at 60 seconds.
+- Demolition: Set up this gametype for mohdm2 and mohdm3.
+- Capture-The-Flag: Added more base positions for mohdm2 and mohdm3.
+
+### Extended-Gametypes 1.1.2 (09/28/04):
+- Renamed Voodoo-Dolls gametype to Demolition. Set g_extgametype to 'dem' to run it.
+- Added Freeze-Tag-Demolition gametype for Stalingrad. Set g_extgametype to 'ftdem' to run it.
+- Added non-respawning Demolition mode. Set 'g_dem_respawn' to 0 to enable it.
+- Capture-The-Flag: Added g_ctf_enemyreturn option to make a flag return to its home base if held by the enemy for too long.
+- Demolition: Added non-respawning sudden death to the end of the round. The team with less players alive at the end will be nuked.
+- Demolition: After both bombs blow up, sudden death will commence.
+- Demolition: Base positions and the player count now appear on the HUD.
+- Demolition: Added "swap" option for g_dem_attacker: this will make it swap between axis and allies attacking each round.
+- Demolition: Fixed bug that would reset the team scores if a draw occured.
+- Misc cvar changes:
+    - Removed the g_vd_... suite of cvars and replaced them with g_dem_... for the Demolition gametype.
+    - Added g_dem_respawn for controlling respawning in Demolition.
+    - Added g_dem_suddendeath for controlling sudden death in Demolition.
+    - Added the g_ftdem_... suite of cvars for the Freeze-Tag-Demolition gametype.
+    - Added g_ctf_enemyreturn.
+
+### Extended-Gametypes 1.1.1 (08/15/04):
+- Added Freeze-Tag-TOW gametype for all Spearhead and Breakthrough tow maps. This is now the default gametype for tow maps.
+- Fixed bug in 'built-in' spectating mode where spectators at the end of the round would have to re-select their weapons at the start of the next round.
+- In Spearhead and Breakthrough, frozen bodies and flags no longer fall through catwalks. (but they still do in Allied Assault, sorry)
+- Wave respawning for the new gametypes is now activated with the "g_mef_team_spawn_interval" cvar instead of "sv_team_spawn_interval".
+- When a bomb is set or defused, the team who did it will be announced.
+- All gametypes: Extended gametypes now start when g_gametype is 5.
+- Misc cvar changes:
+    - Added the g_fttow_... suite of cvars for the Freeze-Tag-TOW gametype.
+    - Added "g_cinematics_off" for the Spearhead TOW maps. Set this to 1 in order to disable cinematics.
+
+### Extended-Gametypes 1.1.0 (07/22/04):
+- Added Freeze-Tag-CTF gametype. Set g_extgametype to "ftctf" to start it.
+- Added non-respawning CTF mode, similar to Freeze-Tag-CTF except with no respawning during the 'capture' phase of the game. Set g_ctf_respawn to 0 to enable this mode.
+- Added wave respawning for CTF. Set sv_team_spawn_interval to the number of seconds a player has to wait to respawn after being killed.
+- Added new 'builtin' spectating mode. In this mode, dead players will be seen as red on the scoreboard, and machine gun turrets will be available in the map. Freefloating and spectating from frozen bodies is not possible in this mode. Set g_mef_observe to "builtin" to enable this new spectating mode.
+- Spearhead version now includes CTF on all maps (base selection by Kaotik).
+- Capture-The-Flag: Flags now stay attached to a player while they climb ladders.
+- Capture-The-Flag: Created new CTF base setup method in map scripts which is much simpler and cleaner. Map scripts using the old base setup method will still work.
+- Voodoo-Dolls: Added ability to play a game with one team attacking and the other team defending. Set g_vd_attacker to "allies", "axis", or "both".
+- Modern-Warfare: Fixed Freeze-Tag-Objective for obj/mw_nasiriyanight. Respawning now works properly.
+- All gametypes: Extended gametypes now start on dm maps when g_gametype is 4.
+- All gametypes: The player count display now shows the current respawning mode.
+- Misc cvar changes:
+    - Removed g_ctf_disable, g_ft_disable, g_ftobj_disable, g_vd_disable.
+    - Added g_mef_disable for disabling the mod. Use this instead of the old cvars for each gametype.
+    - Renamed g_ft_announce and g_ftobj_announce to g_ft_ftannounce and g_ftobj_ftannounce.
+    - Removed g_ft_allowjoin and g_ftobj_allowjoin. Players will now always be able to join a game in the middle of a round.
+    - Removed g_ft_observe. Use the new g_mef_observe cvar instead.
+    - Added g_mef_observe for handling spectator mode options. Now recognizes the 'builtin' option for enabling the new spectating mode.
+    - Added the g_ftctf_... suite of cvars for the Freeze-Tag-CTF gametype.
 
 ### Extended-Gametypes 1.0.0 (06/02/04):
 - Freeze-Tag: Frozen bodies now change to purple when an enemy player is nearby.

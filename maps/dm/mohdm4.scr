@@ -3,7 +3,7 @@
 // SCRIPTING: POWZER
 
 // **********************************************************************
-// Extended-Gametype Mapscript Version 1.0 (06-02-04)
+// Extended-Gametype Mapscript Version 1.1.1 (11-15-04)
 // By Mark Follett (Mefy)
 // email: mef123@geocities.com
 // web: www.planetmedalofhonor.com/mefy
@@ -25,46 +25,32 @@ setcvar "g_scoreboardpic" "mohdm4"
 
 	level.mef_mapname = "mohdm4"
 	level.mef_maptype = "dm"
-	level.mef_supportedgametypes = "ffa"::"tdm"::"rbm"::"ft"::"ctf"
+	level.mef_supportedgametypes = "ffa"::"tdm"::"rbm"::"ft"::"ctf"::"ftctf"::"dem"::"ftdem"
 	level.mef_defaultgametype = "ft"
 
 	switch (waitthread global/libmef/util.scr::get_gametype)
 	{
 		case "ctf":
-        		// Swap the base positions each round
-			if (int(getcvar "g_ctf_lastbase") == 1)
-			{
-				level.ctf_settings["alliedbase"] = "0 128 16.13 -90" // under bridge
-				level.ctf_settings["axisbase"] = "-256 3597 248.13 0" // chartreux
-				local.alliedregion = 1
-				setcvar "g_ctf_lastbase" "0"
-			} else
-			{
-				level.ctf_settings["axisbase"] = "0 128 16.13 -90" // under bridge
-				level.ctf_settings["alliedbase"] = "-256 3597 248.13 0" // chartreux
-				local.alliedregion = 2
-				setcvar "g_ctf_lastbase" "1"
-			}
-			thread global/libmef/spawn.scr::spawnblock_thread local.alliedregion
+		case "ftctf":
+			waitthread global/libmef/spawn.scr::spawnblock_begin
+			waitthread setup_bases
 			thread global/libmef/ctf.scr::ctf_begin
 			break
 
+		case "dem":
+		case "ftdem":
+			waitthread global/libmef/spawn.scr::spawnblock_begin
+			waitthread setup_bases
+			thread global/libmef/dem.scr::dem_begin
+			break
+
 		case "ft":
-			if (int(getcvar "g_ctf_lastbase") == 1)
-			{
-				local.alliedregion = 1
-				setcvar "g_ctf_lastbase" "0"
-			} else
-			{
-				local.alliedregion = 2
-				setcvar "g_ctf_lastbase" "1"
-			}
-		
-			thread global/libmef/spawn.scr::spawnblock_thread local.alliedregion
+			waitthread global/libmef/spawn.scr::spawnblock_begin
 			thread global/libmef/ft.scr::ft_begin
 			break
 
 		case "rbm":
+			waitthread global/libmef/spawn.scr::spawnblock_begin
 			thread roundbasedthread
 			break
 	}
@@ -81,7 +67,6 @@ setcvar "g_scoreboardpic" "mohdm4"
 	thread global/minefield.scr::minefield_setup
 
 	level waittill spawn
-	$world farclipoverride -1
 
 end
 
@@ -102,4 +87,53 @@ roundbasedthread:
 
 	level waittill roundstart
 
+end
+
+
+setup_bases:
+	waitthread global/libmef/util.scr::read_gametype_settings
+
+	if (level.mef_alliedspawnregion == "east")
+	{
+		// common bases for dem and ctf
+		waitthread global/libmef/bases.scr::addbasepair "600 -924 248.13 0 Allied Piano" "-624 2211 472.13 180 Axis Projector" piano projectorcart
+		waitthread global/libmef/bases.scr::addbasepair "861 1362 72.13 -90 Wine Storage" "-1507 1545 290.13 90 Hotel Power Box" winecasks powerpanel
+		waitthread global/libmef/bases.scr::addbasepair "-995 450 30.62 -25 River Halftrack" "955.39 1930.05 186.61 170 North Gate Halftrack" m3 sdkfz ( 1 335 0 ) 
+		waitthread global/libmef/bases.scr::addbasepair "20 -305.98 303.98 90 Jeep" "-45 1851 240.13 -90 Mobile Flak Cannon" jeep opelflak ( 355 90 0 )
+		waitthread global/libmef/bases.scr::addbasepair "4 -136 26.13 90 Bridge Explosives" "-129 2689 18.53 0 Sewer Valves" tntcrate valvetree
+
+		// deep bases
+		if (level.mef_deepbases)
+		{
+			waitthread global/libmef/bases.scr::addbasepair "365 -1125 480.13 90 Allied Barracks" "-690 3536 652.13 90 Axis Barracks" bunkbed bunkbed
+			waitthread global/libmef/bases.scr::addbasepair "-73 -1908 240.13 80 GMC Truck" "-632 4506 298.13 -105 Wagon" gmctruck indycrate
+		}
+
+		// additional bases for ctf only
+		if (level.mef_gametype == "ctf" || level.mef_gametype == "ftctf")
+		{
+			waitthread global/libmef/bases.scr::addbasepair "0 128 16.13 -90" "-256 3597 248.13 0"
+		}
+	} else
+	{
+		// common bases for dem and ctf
+		waitthread global/libmef/bases.scr::addbasepair "-624 2211 472.13 180 Allied Projector" "600 -924 248.13 0 Axis Piano" projectorcart piano
+		waitthread global/libmef/bases.scr::addbasepair "-1507 1545 290.13 90 Hotel Power Box" "861 1362 72.13 -90 Wine Storage" powerpanel winecasks
+		waitthread global/libmef/bases.scr::addbasepair "916 1937 186.61 170 North Gate Halftrack" "-1031.24 466.90 31.31 -25 River Halftrack" m3 sdkfz NIL ( 1 335 0 )
+		waitthread global/libmef/bases.scr::addbasepair "-45 1851 240.13 -90 Jeep" "17 -320.89 301.71 90 Mobile Flak Cannon" jeep opelflak NIL ( 354 90 0 )
+		waitthread global/libmef/bases.scr::addbasepair "-129 2689 18.53 0 Sewer Valves" "4 -136 26.13 90 Bridge Explosives" valvetree tntcrate
+
+		// deep bases
+		if (level.mef_deepbases)
+		{
+			waitthread global/libmef/bases.scr::addbasepair "-690 3536 652.13 90 Allied Barracks" "365 -1125 480.13 90 Axis Barracks" bunkbed bunkbed
+			waitthread global/libmef/bases.scr::addbasepair "-632 4506 298.13 -105 Wagon" "-73 -1908 240.13 80 Opel Truck" indycrate opeltruck
+		}
+
+		// additional bases for ctf only
+		if (level.mef_gametype == "ctf" || level.mef_gametype == "ftctf")
+		{
+			waitthread global/libmef/bases.scr::addbasepair "-256 3597 248.13 0" "0 128 16.13 -90" 
+		}
+	}
 end

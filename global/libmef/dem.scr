@@ -1,0 +1,611 @@
+/*
+================================================================================
+Server-Side Demolition Gametype Library
+for Medal Of Honor
+Version 1.2.7 (11/15/04)
+
+Copyright (c) 2003-2004 Mark Follett
+email: mef123@geocities.com
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is furnished
+to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+================================================================================
+*/
+
+
+dem_begin:
+	level.dem_running = 1
+	level.dem_version = "1.2.7"
+	setcvar "g_dem_version" level.dem_version
+
+	waitthread global/libmef/util.scr::read_gametype_settings
+
+	// bomb settings
+	level.bomb_defuse_time = level.mef_settings["defusetime"]
+	level.bomb_set_time = level.mef_settings["settime"]
+	level.bomb_tick_time = level.mef_settings["ticktime"]
+	level.bomb_explosion_radius = 1054  //quake units
+	level.bomb_damage = 200
+	level.bomb_use_distance = 128 //quake units
+	level.bombusefov = 30
+
+	level.dem_second_bomb_tick_add = 7  // seconds to add to second bomb time after the first blows
+
+	level.dem_attacker = level.mef_settings["attacker"]
+	if (level.dem_attacker == "swap")
+	{
+		local.swapbases = 1
+		local.lastattacker = getcvar "g_mef_lastattacker"
+		if (local.lastattacker == "allies")
+		{
+			level.dem_attacker = "axis"
+		} else
+		{
+			level.dem_attacker = "allies"
+		}
+		
+		setcvar "g_mef_lastattacker" level.dem_attacker
+	}
+	
+	if (level.dem_attacker != "allies" && level.dem_attacker != "axis")
+	{
+		level.dem_attacker = "both"
+	}
+	level.dem_defender = waitthread global/libmef/util.scr::get_other_team level.dem_attacker
+
+	if (level.mef_gametype == "dem")
+	{
+		if (level.mef_settings["respawn"])
+		{
+			level.mef_dmrespawning = 1
+			level.mef_allies.respawn = 1
+			level.mef_axis.respawn = 1
+		} else
+		{
+			level.mef_dmrespawning = 0
+			level.mef_allies.respawn = 0
+			level.mef_axis.respawn = 0
+		}
+		local.gtypename = "Demolition"
+	} else
+	{
+		level.mef_dmrespawning = 0
+		level.mef_freezemode = 1
+		level.mef_allies.respawn = 0
+		level.mef_allies.freezemode = 1
+		level.mef_axis.respawn = 0
+		level.mef_axis.freezemode = 1
+		local.gtypename = "Freeze-Tag-DEM"
+	}
+
+	level.dem_basesx = 10
+	level.dem_basesy = -140
+
+	level.mef_pchudenabled = 1
+	level.mef_pchudx = 10
+
+	if (level.dem_attacker == "both")
+	{
+		level.mef_checkwinthread = global/libmef/respawn.scr::get_winner_doubleobj
+		level.mef_pchudy = -200
+	} else
+	{
+		level.mef_checkwinthread = global/libmef/respawn.scr::get_winner_obj
+		level.mef_pchudy = -175
+	}
+
+	level.dem_bmeterx = 13
+	level.dem_bmetery = level.mef_pchudy - 125
+
+	level.mef_credits[0] = (local.gtypename + " MOD")
+	level.mef_credits[1] = ("Version " + level.dem_version)
+	level.mef_credits[2] = "by Mefy"
+	level.mef_credits[3] = "planetmedalofhonor.com/"
+	level.mef_credits[4] = "mefy"
+	level.mef_credits[5] = ""
+
+	if (level.mef_maptype == "obj")
+	{
+		level.mef_basegametype = 4 // Objective-Match
+		setcvar "g_obj_axistext1" (local.gtypename + " MOD")
+		setcvar "g_obj_axistext2" "by Mefy"
+		setcvar "g_obj_axistext3" ""
+	} else
+	{
+		level.mef_basegametype = 3 // Round-Based-Match
+		setcvar "g_obj_axistext1" ""
+		setcvar "g_obj_axistext2" (local.gtypename + " MOD")
+		setcvar "g_obj_axistext3" "by Mefy"
+	}
+	
+	if (level.dem_attacker == "allies")
+	{
+		setcvar "g_obj_alliedtext1" "Allies must destroy"
+		setcvar "g_obj_alliedtext2" "the axis team's base"
+		setcvar "g_obj_alliedtext3" ""
+	} else if (level.dem_attacker == "axis")
+	{
+		setcvar "g_obj_alliedtext1" "Axis must destroy"
+		setcvar "g_obj_alliedtext2" "the allied team's base"
+		setcvar "g_obj_alliedtext3" ""
+	} else
+	{
+		setcvar "g_obj_alliedtext1" "Find and destroy"
+		setcvar "g_obj_alliedtext2" "the enemy team's base"
+		setcvar "g_obj_alliedtext3" ""
+	}
+
+	setcvar "g_gametype" level.mef_basegametype
+
+	waitthread global/libmef/mapdesc.scr::setup_map level.mef_mapname
+
+	level.dem_bases = waitthread global/libmef/bases.scr::read_base_settings level.mef_settings level.dem_defender
+
+	level waittill prespawn
+
+	if (level.dem_attacker == "both")
+	{
+		if ((level.mef_gametype == "dem") && (level.mef_settings["respawn"] == 0))
+		{
+			level.dmroundlimit = 5
+		} else
+		{
+			level.dmroundlimit = 7
+		}
+		level.clockside = draw
+	} else
+	{
+		level.planting_team = level.dem_attacker
+		level.defusing_team = level.dem_defender
+		level.clockside = level.dem_defender
+		level.targets_to_destroy = 1
+		level.targets_destroyed = 0
+		level.dmroundlimit = 5
+	}
+
+	thread global/libmef/bases.scr::spawn_bases level.dem_bases
+
+	if (level.mef_devmode)
+	{
+		level.mef_settings["activatedelay"] = 1
+	}
+
+	level waittill spawn
+	
+	if (!level.mef_devmode)
+	{
+		level waittill roundstart
+	}
+
+	while (!level.mef_basesspawned)
+	{
+		waitframe
+	}
+	
+	if (level.dem_attacker == "both")
+	{
+		level.dem_bombs["axis"] = waitthread setup_base level.dem_bases["allies"] "axis" level.dem_bmeterx level.dem_bmetery level.dem_basesx (level.dem_basesy + 25)
+		level.dem_bombs["allies"] = waitthread setup_base level.dem_bases["axis"] "allies" (level.dem_bmeterx + 20) level.dem_bmetery level.dem_basesx level.dem_basesy
+	} else
+	{
+		level.dem_bombs[level.dem_attacker] = waitthread setup_base level.dem_bases[level.dem_defender] level.dem_attacker level.dem_bmeterx level.dem_bmetery level.dem_basesx (level.dem_basesy + 25)
+	}
+	
+	thread activatebombs level.mef_settings["activatedelay"]
+
+	waitthread global/libmef/hud.scr::init_suddendeath_hud
+
+	local.sdmins = 0
+	local.autonuke = 0
+	
+	if ((level.mef_dmrespawning || level.mef_freezemode) && level.mef_settings["suddendeath"] > 0)
+	{
+		local.sdmins = level.mef_settings["suddendeath"]
+	}
+
+	if (level.dem_attacker == "both")
+	{
+		// double objective mode
+		thread check_bombs_exploded
+
+		waitthread global/libmef/util.scr::turn_off_clock
+
+		if (!level.mef_dmrespawning || local.sdmins > 0)
+		{
+			local.autonuke = 1
+		}
+	} else
+	{
+		// single objective mode
+		thread check_singlebomb_exploded
+		level.bombs_planted = 1
+		level.bomb_set = 1
+	}
+
+	thread global/libmef/respawn.scr::round_thread local.sdmins local.autonuke
+	
+	if (local.swapbases)
+	{
+		wait 2
+		iprintlnbold_noloc ("The " + level.mef_team[level.dem_attacker].desc + " team is attacking this round!")
+	}
+end
+
+
+read_game_settings:
+	local.settingsdef[0] = "settime"::int::50    //tenths of a second
+	local.settingsdef[1] = "defusetime"::int::35 //tenths of a second
+	local.settingsdef[2] = "ticktime"::int::45   //seconds
+	local.settingsdef[3] = "activatedelay"::int::20 // seconds till bombs are activated
+	local.settingsdef[4] = "attacker"::string::"both" // the attacking team
+	local.settingsdef[5] = "suddendeath"::int::1 // minutes of sudden death
+
+	if (level.mef_gametype == "dem")
+	{
+		local.settingsdef[6] = "respawn"::bool::0 // allow respawning
+	}
+
+	if (level.mef_gametype == "ftdem")
+	{
+		waitthread global/libmef/ft.scr::append_ft_settingsdef local.settingsdef
+	}
+
+	waitthread global/libmef/util.scr::read_game_settings level.mef_settings local.settingsdef
+end
+
+
+setup_base local.base local.team local.meterx local.metery local.basex local.basey:
+	local.bomb = waitthread global/libmef/bomb.scr::new_bomb local.base.bomborg local.base.bombang local.team
+	local.bomb.desc = local.base.desc
+
+	local.bomb.trigger_name nottriggerable
+	local.bomb hide
+	local.bomb.bombtarget = local.base
+
+	local.bomb thread global/libmef/bomb.scr::bomb_thread
+
+	local.bomb.meter = waitthread new_bombmeter local.meterx local.metery local.base.team local.bomb
+	thread check_bomb_status local.bomb 1.5
+	waitthread init_base_display local.base.team local.bomb local.basex local.basey
+end local.bomb
+
+
+activate_bomb local.bomb:
+	local.bomb.timeleft = 1.0
+	local.bomb show
+	local.bomb.trigger_name triggerable
+end
+
+
+activatebombs local.activatedelay:
+	wait local.activatedelay
+	
+	if (level.dem_bombs["allies"] != NIL)
+	{
+		waitthread activate_bomb level.dem_bombs["allies"]
+	}
+	
+	if (level.dem_bombs["axis"] != NIL)
+	{
+		waitthread activate_bomb level.dem_bombs["axis"]
+	}
+	
+	if (level.dem_attacker == "both")
+	{
+		iprintlnbold_noloc "Bombs activated."
+	} else
+	{
+		iprintlnbold_noloc "Bomb activated."
+	}
+end
+
+
+check_singlebomb_exploded:
+	level.dem_bombsblown = "none"
+
+	local.bomb = level.dem_bombs[level.dem_attacker]
+	
+	while (!local.bomb.exploded)
+	{
+		waitframe
+		
+		if (level.mef_gameover)
+		{
+			end
+		}
+	}
+	
+	iprintlnbold_noloc ("The " + level.mef_team[level.dem_defender].desc + " base has been destroyed!")
+	waitthread global/libmef/util.scr::do_teamwin level.dem_attacker
+end
+
+
+check_bombs_exploded:
+	level.dem_bombsblown = "none"
+	
+	while (!level.dem_bombs["allies"].exploded && !level.dem_bombs["axis"].exploded)
+	{
+		waitframe
+
+		if (level.mef_gameover)
+		{
+			end
+		}
+	}
+
+	if (level.dem_bombs["allies"].exploded && level.dem_bombs["axis"].exploded)
+	{
+		level.dem_bombsblown = "both"
+	} else if (level.dem_bombs["allies"].exploded)
+	{
+		level.dem_bombsblown = "allies"
+	} else if (level.dem_bombs["axis"].exploded)
+	{
+		level.dem_bombsblown = "axis"
+	}
+	
+	if (level.dem_bombsblown == "both")
+	{
+		// transition to sudden death
+		local.suddendeath = 1
+	} else if (level.dem_bombsblown != "none")
+	{
+		local.otherteam = level.mef_team[level.dem_bombsblown].otherteam.name
+		local.otherbomb = level.dem_bombs[local.otherteam]
+		iprintlnbold_noloc ("The " + level.mef_team[level.dem_bombsblown].otherteam.desc + " base has been destroyed!")
+	
+		if (local.otherbomb.live)
+		{
+			local.otherbomb.bomb_tick_time = local.otherbomb.bomb_tick_time + level.dem_second_bomb_tick_add
+			local iprintlnbold_noloc ("A bomb is still set! [" + local.otherbomb.desc + "]")
+
+			while (local.otherbomb.live && !local.otherbomb.exploded)
+			{
+				waitframe
+
+				if (level.mef_gameover)
+				{
+					end
+				}
+			}
+
+			if (local.otherbomb.exploded)
+			{
+				// second bomb exploded
+				level.dem_bombsblown = "both"
+				local.suddendeath = 1
+			} else
+			{
+				// second bomb was defused
+				waitthread global/libmef/util.scr::do_teamwin level.dem_bombsblown
+			}
+		} else
+		{
+			waitthread global/libmef/util.scr::do_teamwin level.dem_bombsblown
+		}
+	}
+	
+	if (local.suddendeath)
+	{
+		if (level.mef_settings["suddendeath"] > 0)
+		{
+			iprintlnbold_noloc "Both bases are destroyed. Kill the enemy team to win the round!"
+			level.mef_roundendtime = level.mef_elapsedtime + (level.mef_settings["suddendeath"] * 60) + 22
+		} else
+		{
+			waitthread global/libmef/util.scr::do_teamwin draw
+		}
+	}
+end
+
+
+new_bombmeter local.xpos local.ypos local.team local.bomb:
+	local.ent = spawn Listener
+	local.ent.xpos = local.xpos
+	local.ent.ypos = local.ypos
+	local.ent.team = local.team
+	local.ent.sizex = 16
+	local.ent.sizey = 70
+	local.ent.bomb = local.bomb
+	
+	local.ent.hud = waitthread global/libmef/hud.scr::register_hud_item 3 global/libmef/dem.scr::setup_bombmeter_display global/libmef/dem.scr::update_bombmeter_display
+	local.ent.hud.meter = local.ent
+end local.ent
+
+
+setup_bombmeter_display:
+	local.iconsize = 20
+
+	huddraw_shader self.idx textures/hud/healthback
+	huddraw_align self.idx left bottom
+	huddraw_rect  self.idx self.meter.xpos self.meter.ypos self.meter.sizex self.meter.sizey
+	huddraw_color self.idx 1.0 1.0 1.0
+
+	huddraw_align (self.idx + 1) left bottom
+	huddraw_color (self.idx + 1) 1.0 1.0 1.0
+
+	huddraw_shader (self.idx + 2) ("textures/hud/" + self.meter.team)
+	huddraw_align (self.idx + 2) left bottom
+	huddraw_rect  (self.idx + 2) (self.meter.xpos + ((self.meter.sizex - local.iconsize) * 0.5)) (self.meter.ypos + self.meter.sizey + (local.iconsize * 0.1)) local.iconsize local.iconsize
+	huddraw_color (self.idx + 2) 1.0 1.0 1.0
+end
+
+
+update_bombmeter_display:
+	if (level.mef_updatehudall || self.keys["level"])
+	{
+		huddraw_rect (self.idx + 1) self.meter.xpos (self.meter.ypos + ((1.0 - self.meter.bomb.timeleft) * self.meter.sizey)) self.meter.sizex (self.meter.bomb.timeleft * self.meter.sizey)
+	}
+	
+	if (level.mef_updatehudall || self.keys["visible"])
+	{
+		if (self.meter.visible)
+		{
+			huddraw_alpha self.idx 1.0
+			huddraw_alpha (self.idx + 1) 1.0
+			huddraw_alpha (self.idx + 2) 1.0
+		} else
+		{
+			huddraw_alpha self.idx 0.0
+			huddraw_alpha (self.idx + 1) 0.0
+			huddraw_alpha (self.idx + 2) 0.0
+		}
+	}
+	
+	if (level.mef_updatehudall || self.keys["set"])
+	{
+		if (self.meter.bomb.live)
+		{
+			huddraw_shader (self.idx + 1) textures/hud/healthmeterflash
+		} else
+		{
+			huddraw_shader (self.idx + 1) textures/hud/healthmeter
+		}
+	}
+end
+
+
+check_bomb_status local.bomb local.updatefreq:
+	local.meter = local.bomb.meter
+	local.nexttick = level.time + local.updatefreq
+	while (1)
+	{
+		local.checklevel = 0
+		if (level.time > local.nexttick)
+		{
+			local.checklevel = 1
+			local.nexttick = level.time + local.updatefreq
+		}
+		
+		if (local.bombset != local.bomb.live)
+		{
+			if (!local.bomb.live)
+			{
+				local.offtime = level.time + 3
+			} else
+			{
+				local.offtime = NIL
+				if (!local.meter.visible)
+				{
+					local.meter.visible = 1
+					local.meter.hud.keys["visible"] = 1
+				}
+			}
+			
+			local.bombset = local.bomb.live
+			local.meter.hud.keys["set"] = 1
+			local.meter.hud.keys["level"] = 1
+			level.mef_updatehud = 1
+		}
+		
+		if (local.checklevel && local.bomblevel != local.bomb.timeleft)
+		{
+			local.bomblevel = local.bomb.timeleft
+			local.meter.hud.keys["level"] = 1
+			level.mef_updatehud = 1
+		}
+
+		if (local.offtime != NIL && level.time > local.offtime)
+		{
+			local.offtime = NIL
+			local.meter.visible = 0
+			local.meter.hud.keys["visible"] = 1
+			level.mef_updatehud = 1
+		}
+		
+		waitframe
+	}
+end
+
+
+init_base_display local.team local.bomb local.x local.y:
+	local.hud = waitthread global/libmef/hud.scr::register_hud_item 2 global/libmef/dem.scr::setup_base_display global/libmef/dem.scr::update_base_display
+	local.hud.bomb = local.bomb
+	local.hud.coordx = local.x
+	local.hud.coordy = local.y
+	local.hud.team = local.team
+	
+	if (local.team == "allies")
+	{
+		local.hud.color = ( 0.4 0.4 1.0 )
+		local.hud.livecolor = ( 0.4 1.0 1.0 )
+	} else
+	{
+		local.hud.color = ( 1.0 0.4 0.4 )
+		local.hud.livecolor = ( 1.0 1.0 0.4 )
+	}
+
+	thread check_base_status_change local.hud local.bomb
+end
+
+
+setup_base_display:
+	huddraw_align  self.idx left bottom
+	huddraw_font   self.idx facfont-20
+	huddraw_rect   self.idx (self.coordx + 30) self.coordy 100 100
+	huddraw_color  self.idx 1.0 1.0 1.0
+	huddraw_alpha  self.idx 1.0
+
+	huddraw_shader (self.idx + 1) ("textures/hud/" + self.team)
+	huddraw_align (self.idx + 1) left bottom
+	huddraw_rect  (self.idx + 1) self.coordx (self.coordy - 5) 25 25
+	huddraw_color (self.idx + 1) 1.0 1.0 1.0
+	huddraw_alpha (self.idx + 1) 1.0
+end
+
+
+update_base_display:
+	if (level.mef_updatehudall || self.keys["status"])
+	{
+		if (self.bomb.exploded)
+		{
+			local.str = "-Destroyed-"
+			local.color = ( 1.0 1.0 1.0 )
+		} else if (self.bomb.live)
+		{
+			local.str = "*" + self.bomb.desc + "*"
+			local.color = self.livecolor
+		} else
+		{
+			local.str = "[" + self.bomb.desc + "]"
+			local.color = self.color
+		}
+
+		huddraw_string self.idx local.str
+		huddraw_color self.idx local.color[0] local.color[1] local.color[2]	
+	}
+end
+
+
+check_base_status_change local.hud local.bomb:
+	local.live = local.bomb.live
+	local.exploded = local.bomb.exploded
+
+	while (1)
+	{
+		if (local.live != local.bomb.live || local.exploded != local.bomb.exploded)
+		{
+			local.live = local.bomb.live
+			local.exploded = local.bomb.exploded
+			local.hud.keys["status"] = 1
+			level.mef_updatehud = 1
+		}
+		
+		waitframe
+	}
+end

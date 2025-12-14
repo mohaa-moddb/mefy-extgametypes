@@ -3,7 +3,7 @@
 // SCRIPTING: POWZER
 
 // **********************************************************************
-// Extended-Gametype Mapscript Version 1.0 (06-02-04)
+// Extended-Gametype Mapscript Version 1.1.1 (11-15-04)
 // By Mark Follett (Mefy)
 // email: mef123@geocities.com
 // web: www.planetmedalofhonor.com/mefy
@@ -23,15 +23,21 @@ main:
 
 	level.mef_mapname = "obj_team4"
 	level.mef_maptype = "obj"
-	level.mef_supportedgametypes = "ffa"::"tdm"::"rbm"::"obj"::"ft"::"ctf"::"ftobj"
+	level.mef_supportedgametypes = "ffa"::"tdm"::"rbm"::"obj"::"ft"::"ctf"::"ftobj"::"ftctf"::"dem"::"ftdem"
 	level.mef_defaultgametype = "ftobj"
 
 	switch (waitthread global/libmef/util.scr::get_gametype)
 	{
 		case "ctf":
-			level.ctf_settings["alliedbase"] = "0 128 16.13 -90" // under bridge
-			level.ctf_settings["axisbase"] = "-256 3597 248.13 0" // chartreux
+		case "ftctf":
+			waitthread setup_bases
 			thread global/libmef/ctf.scr::ctf_begin
+			break
+
+		case "dem":
+		case "ftdem":
+			waitthread setup_bases
+			thread global/libmef/dem.scr::dem_begin
 			break
 
 		case "ft":
@@ -74,7 +80,6 @@ main:
 	exec global/door_locked.scr::lock
 
 	level waittill spawn
-	$world farclipoverride -1
 end
 
 
@@ -93,6 +98,30 @@ roundbasedthread:
 
 	level waittill roundstart
 
+end
+
+
+setup_bases:
+	waitthread global/libmef/util.scr::read_gametype_settings
+
+	// common bases for dem and ctf
+	waitthread global/libmef/bases.scr::addbasepair "600 -924 248.13 0 Allied Piano" "-624 2211 472.13 180 Axis Projector" piano projectorcart
+	waitthread global/libmef/bases.scr::addbasepair "4 -136 26.13 90 Bridge Explosives" "-632 4506 298.13 -105 Wagon" tntcrate indycrate
+	waitthread global/libmef/bases.scr::addbasepair "-64 -665.90 255.06 90 Sherman Tank" "-60 3648 240.13 -90 Panzer Tank" shermantank panzer ( 352 90 0 )
+	waitthread global/libmef/bases.scr::addbasepair "861 1362 72.13 -90 Wine Storage" "-1507 1545 290.13 90 Hotel Power Box" winecasks powerpanel
+	waitthread global/libmef/bases.scr::addbasepair "-995 450 30.62 -25 River Halftrack" "955.39 1930.05 186.61 170 North Gate Halftrack" m3 sdkfz ( 1 335 0 ) 
+
+	if (level.mef_deepbases)
+	{
+		waitthread global/libmef/bases.scr::addbasepair "365 -1125 480.13 90 Allied Barracks" "-690 3536 652.13 90 Axis Barracks" bunkbed bunkbed
+	}
+
+	// additional bases for ctf only
+	if (level.mef_gametype == "ctf" || level.mef_gametype == "ftctf")
+	{
+		// under bridge/chartreux
+		waitthread global/libmef/bases.scr::addbasepair "0 128 16.13 -90" "-256 3597 248.13 0"
+	}
 end
 
 

@@ -1,0 +1,399 @@
+/*
+================================================================================
+HUD Library
+for Medal Of Honor
+Version 1.0.0 (09/28/04)
+
+Copyright (c) 2004 Mark Follett
+email: mef123@geocities.com
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is furnished
+to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+================================================================================
+*/
+
+
+register_hud_item local.numids local.setupthread local.updatethread local.hidethread:
+	local.ent = spawn Listener
+	local.ent.idx = level.mef_nexthudid
+	local.ent.numids = local.numids
+	local.ent.setupthread = local.setupthread
+	local.ent.updatethread = local.updatethread
+	local.ent.hidethread = local.hidethread
+
+	level.mef_huditems[level.mef_huditems.size] = local.ent
+	level.mef_nexthudid += local.numids
+	level.mef_setuphud = 1
+	level.mef_updatehudall = 1
+end local.ent
+
+
+hide_hud_item:
+	for (local.i = self.idx; local.i < (self.idx + self.numids); local.i++)
+	{
+		huddraw_alpha local.i 0.0
+	}
+end
+
+
+hud_thread:
+	level.mef_huditems[0] = NIL
+	level.mef_nexthudid = 50
+	local.maxhuditems = 15
+
+	level waittill prespawn
+	level waittill spawn
+	
+	wait 1
+
+	for (local.i = level.mef_nexthudid; local.i < (level.mef_nexthudid + local.maxhuditems); local.i++)
+	{
+		huddraw_alpha local.i 0
+	}
+
+	// turn off the center message from a previous round
+	huddraw_alpha 26 0
+	huddraw_alpha 27 0
+
+	thread check_new_players 3
+
+	while (1)
+	{
+		if (level.mef_setuphud)
+		{
+			for (local.i = 0; local.i < level.mef_huditems.size; local.i++)
+			{
+				local.huditem = level.mef_huditems[local.i]
+				local.huditem waitthread local.huditem.setupthread
+			}
+			level.mef_setuphud = 0
+		}
+		if (level.mef_updatehud || level.mef_updatehudall)
+		{
+			for (local.i = 0; local.i < level.mef_huditems.size; local.i++)
+			{
+				local.huditem = level.mef_huditems[local.i]
+				local.huditem waitthread local.huditem.updatethread
+				local.huditem.keys = NIL
+			}
+			level.mef_updatehud = 0
+			level.mef_updatehudall = 0
+		}
+		if (level.mef_hidehud)
+		{
+			for (local.i = 0; local.i < level.mef_huditems.size; local.i++)
+			{
+				local.huditem = level.mef_huditems[local.i]
+				if (local.huditem.hidethread != NIL)
+				{
+					local.huditem waitthread local.huditem.hidethread
+				} else
+				{
+					local.huditem waitthread hide_hud_item
+				}
+			}
+			level.mef_hidehud = 0
+		}
+		waitframe
+	}
+end
+
+
+check_new_players local.freq:
+	while (1)
+	{
+		local.setuphud = 0
+		for (local.i = 1; local.i < ($player.size + 1); local.i++)
+		{
+			local.player = $player[local.i]
+			if (local.player != NIL && local.player != NULL && local.player.mef_joinedgame == NIL)
+			{
+				local.player.mef_joinedgame = 1
+				local.setuphud = 1
+			}
+		}
+
+		if (local.setuphud)
+		{
+			wait 1
+			level.mef_setuphud = 1
+			level.mef_updatehudall = 1
+		}
+
+		wait local.freq
+	}
+end
+
+
+init_playercount_hud local.x local.y:
+	local.ystep = 25
+	local.alliedhud = waitthread new_bodycount_hud level.mef_allies local.x local.y
+	local.axishud = waitthread new_bodycount_hud level.mef_axis local.x (local.y + local.ystep)
+	local.respawnhud = waitthread register_hud_item 1 setup_respawnmode_display update_respawnmode_display
+	local.respawnhud.coordx = local.x
+	local.respawnhud.coordy = local.y - local.ystep
+	thread check_respawnmode_changed local.respawnhud
+end
+
+
+init_suddendeath_hud:
+	local.hud = waitthread register_hud_item 1 setup_sd_display update_sd_display
+	thread check_suddendeath_changed local.hud
+end
+
+
+new_bodycount_hud local.team local.x local.y:
+	local.hud = waitthread register_hud_item 2 setup_body_display update_body_display
+	local.hud.team = local.team
+	local.hud.coordx = local.x
+	local.hud.coordy = local.y
+	local.hud.iconsize = 25
+	local.hud.textcolor = ( 1.0 1.0 1.0 )
+	local.hud.iconcenx = local.x + 12
+	local.hud.iconceny = local.y + 7
+	local.hud.status = 0
+
+	local.team.ftbodydesc = ""
+
+	thread check_num_players_changed local.team local.hud
+	thread check_hudstatus_change local.hud
+end local.hud
+
+
+setup_respawnmode_display:
+	huddraw_align  self.idx left bottom
+	huddraw_font   self.idx facfont-20
+	huddraw_rect   self.idx (self.coordx + 30) self.coordy 100 100
+	huddraw_alpha  self.idx 1.0
+end
+
+
+update_respawnmode_display:
+	if (level.mef_updatehudall || self.keys["respawnmode"])
+	{
+		if (level.mef_dmrespawning)
+		{
+			local.str = "Full Respawn"
+		} else
+		{
+			if (level.mef_freezemode)
+			{
+				local.str = "Freeze Tag"
+			} else
+			{
+				local.str = "No Respawn"
+			}
+		}
+		
+		huddraw_string self.idx ("[" + local.str + "]")
+	}
+end
+
+
+setup_sd_display:
+	huddraw_align self.idx right top
+	huddraw_font  self.idx facfont-20
+	huddraw_rect  self.idx -103 70 100 100
+	huddraw_color self.idx 1.0 1.0 1.0
+	huddraw_alpha self.idx 1.0
+end
+
+
+update_sd_display:
+	if (level.mef_updatehudall || self.keys["suddendeath"])
+	{
+		if (level.mef_suddendeath)
+		{
+			huddraw_string self.idx "[Sudden Death]"
+		} else
+		{
+			huddraw_string self.idx ""
+		}
+	}
+end
+
+
+setup_body_display:
+	huddraw_align  self.idx left bottom
+	huddraw_font   self.idx facfont-20
+	huddraw_rect   self.idx (self.coordx + 30) self.coordy 100 100
+	huddraw_alpha  self.idx 1.0
+
+	huddraw_shader (self.idx + 1) ("textures/hud/" + self.team.name)
+	huddraw_align (self.idx + 1) left bottom
+	huddraw_color (self.idx + 1) 1.0 0.0 0.0
+	huddraw_alpha (self.idx + 1) 1.0
+end
+
+
+update_body_display:
+	local.iconoff = self.iconsize / 2
+
+	if (level.mef_updatehudall || self.keys["count"])
+	{
+		huddraw_string self.idx (self.team.numplayers + " / " + self.team.totplayers + " " + self.team.ftbodydesc)
+	}
+	
+	if (level.mef_updatehudall || self.keys["color"])
+	{
+		huddraw_color self.idx self.textcolor[0] self.textcolor[1] self.textcolor[2]
+	}
+
+	if (level.mef_updatehudall || self.keys["size"])
+	{
+		huddraw_rect (self.idx + 1) (self.iconcenx - local.iconoff) (self.iconceny - local.iconoff) self.iconsize self.iconsize
+	}
+end
+
+
+check_hudstatus_change local.hud:
+	switch (local.hud.team.name)
+	{
+		case "allies":
+			local.textcolor[ -4] = ( 0.4 0.4 1.0 )
+			local.textcolor[0]   = ( 1.0 1.0 1.0 )
+			local.textcolor[4]   = ( 0.4 1.0 1.0 )
+			break
+			
+		case "axis":
+			local.textcolor[ -4] = ( 1.0 0.4 0.4 )
+			local.textcolor[0]   = ( 1.0 1.0 1.0 )
+			local.textcolor[4]   = ( 1.0 1.0 0.4 )
+			break
+	}
+
+	local.iconsize[ -4] = 16
+	local.iconsize[ -3] = 19
+	local.iconsize[ -2] = 22
+	local.iconsize[ -1] = 25
+	local.iconsize[0]   = 25
+	local.iconsize[1]   = 25
+	local.iconsize[2]   = 28
+	local.iconsize[3]   = 31
+	local.iconsize[4]   = 34
+
+	local.hudstatus = 0
+	
+	while (1)
+	{
+		if (local.hud.status != 0)
+		{
+			if (local.hud.status > 0)
+			{
+				local.hudstatus = 5
+			} else
+			{
+				local.hudstatus = -5
+			}
+			
+			local.nexttick = -1
+			local.hud.status = 0
+		}
+
+		if (local.hudstatus != 0 && level.time > local.nexttick)
+		{
+			if (local.hudstatus > 0)
+			{
+				local.hudstatus -= 1
+			} else
+			{
+				local.hudstatus += 1
+			}
+			
+			local.hud.iconsize = local.iconsize[local.hudstatus]
+			local.hud.keys["size"] = 1
+
+			if (local.hudstatus == -4 || local.hudstatus == 0 || local.hudstatus == 4)
+			{
+				local.hud.textcolor = local.textcolor[local.hudstatus]
+				local.hud.keys["color"] = 1
+			}
+			
+			level.mef_updatehud = 1
+			
+			if (local.hudstatus == 1 || local.hudstatus == -1)
+			{
+				local.nexttick = level.time + 2.0
+			} else
+			{
+				local.nexttick = level.time + 0.1
+			}
+		}
+				
+		waitframe
+	}
+end
+
+
+check_num_players_changed local.team local.hud:
+	local.numplayers = 0
+
+	while (1)
+	{
+		if (local.numplayers != local.team.numplayers || \
+		    local.totplayers != local.team.totplayers || \
+		    local.bodydesc != local.team.ftbodydesc)
+		{
+			local.status = local.team.numplayers - local.numplayers
+			if (local.status != 0)
+			{
+				local.hud.status = local.status
+			}
+			local.numplayers = local.team.numplayers
+			local.totplayers = local.team.totplayers
+			local.bodydesc = local.team.ftbodydesc
+			local.hud.keys["count"] = 1
+			level.mef_updatehud = 1
+		}
+		waitframe
+	}
+end
+
+
+check_respawnmode_changed local.hud:
+	local.respawnmode = level.mef_dmrespawning
+	local.freezemode = level.mef_freezemode
+	
+	while (1)
+	{
+		if (local.respawnmode != level.mef_dmrespawning || local.freezemode != level.mef_freezemode)
+		{
+			local.respawnmode = level.mef_dmrespawning
+			local.freezemode = level.mef_freezemode
+			local.hud.keys["respawnmode"] = 1
+			level.mef_updatehud = 1
+		}
+		waitframe
+	}
+end
+
+
+check_suddendeath_changed local.hud:
+	local.suddendeath = level.mef_suddendeath
+	
+	while (1)
+	{
+		if (local.suddendeath != level.mef_suddendeath)
+		{
+			local.suddendeath = level.mef_suddendeath
+			local.hud.keys["suddendeath"] = 1
+			level.mef_updatehud = 1
+		}
+		waitframe
+	}
+end

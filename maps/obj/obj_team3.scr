@@ -2,7 +2,7 @@
 // BY ADAM "SENN" BELLEFEUIL
 
 // **********************************************************************
-// Extended-Gametype Mapscript Version 1.0 (06-02-04)
+// Extended-Gametype Mapscript Version 1.1.1 (11-15-04)
 // By Mark Follett (Mefy)
 // email: mef123@geocities.com
 // web: www.planetmedalofhonor.com/mefy
@@ -22,23 +22,21 @@ main:
 
 	level.mef_mapname = "obj_team3"
 	level.mef_maptype = "obj"
-	level.mef_supportedgametypes = "ffa"::"tdm"::"rbm"::"obj"::"ft"::"ctf"::"ftobj"
+	level.mef_supportedgametypes = "ffa"::"tdm"::"rbm"::"obj"::"ft"::"ctf"::"ftobj"::"ftctf"::"dem"::"ftdem"
 	level.mef_defaultgametype = "ftobj"
 
 	switch (waitthread global/libmef/util.scr::get_gametype)
 	{
 		case "ctf":
-			local.alliedbases[0] = "-1334 -2534 -232.16 -90" // left
-			local.alliedbases[1] = "943 -2540 -275.42 -90" // center
-			local.alliedbases[2] = "2578 -2529 -209.46 -90" // right
-
-			local.axisbases[0] = "-602 241 341.14 -90" // left
-			local.axisbases[1] = "167 316 314.52 -90" // center
-			local.axisbases[2] = "1071 290 298.99 -90" // right
-
-			level.ctf_settings["alliedbase"] = local.alliedbases[(randomint(local.alliedbases.size))]
-			level.ctf_settings["axisbase"] = local.axisbases[(randomint(local.axisbases.size))]
+		case "ftctf":
+			waitthread setup_bases
 			thread global/libmef/ctf.scr::ctf_begin
+			break
+
+		case "dem":
+		case "ftdem":
+			waitthread setup_bases
+			thread global/libmef/dem.scr::dem_begin
 			break
 
 		case "ft":
@@ -110,7 +108,6 @@ main:
 	exec global/ambient.scr obj_team5
 
 	level waittill spawn
-	$world farclipoverride -1
 
 	if (!level.mef_devmode && level.roundbased)
 	{
@@ -139,6 +136,38 @@ roundbasedthread:
 
 	level waittill roundstart
 
+end
+
+
+setup_bases:
+	// remove the cannons
+	$88mm_weapon1 remove
+	$88mm_weapon2 remove
+
+	waitthread global/libmef/util.scr::read_gametype_settings
+
+	// common bases for dem and ctf
+	waitthread global/libmef/bases.scr::addbasepair "733 -1248 -503.88 -90 Allied Ammo Crate" "1334 1127 64.13 -31 Axis Cable Spool" indycrate cablespool
+	waitthread global/libmef/bases.scr::addbasepair "-862.58 -3072.64 -427.31 130 Sherman Tank" "1609 -319 256.13 -90 West Bunker" shermantank cardtable ( 3 130 7 )
+	waitthread global/libmef/bases.scr::addbasepair "2261.73 -3038.84 -383.32 100 Sherman Tank" "-1123 -702 256.13 -90 East Bunker" shermantank cardtable ( 0 100 3 )
+
+	// deep bases
+	if (level.mef_deepbases)
+	{
+		waitthread global/libmef/bases.scr::addbasepair "1563 -5070 -480.84 90 Higgins Boat" "-1110 1575 450 135 East Cannon" higginsboat 15cmcannon
+		waitthread global/libmef/bases.scr::addbasepair "-113 -5026 -477.99 90 Higgins Boat" "2432 1365 451 45 West Cannon" higginsboat 15cmcannon
+	}
+	
+	// additional bases for ctf only
+	if (level.mef_gametype == "ctf" || level.mef_gametype == "ftctf")
+	{
+		waitthread global/libmef/bases.scr::addbase allies "-1334 -2534 -232.16 -90 Beach East"
+		waitthread global/libmef/bases.scr::addbase allies "943 -2540 -275.42 -90 Beach Center"
+		waitthread global/libmef/bases.scr::addbase allies "2578 -2529 -209.46 -90 Beach West"
+		waitthread global/libmef/bases.scr::addbase axis "-602 241 341.14 -90 Cliff East"
+		waitthread global/libmef/bases.scr::addbase axis "167 316 314.52 -90 Cliff Center"
+		waitthread global/libmef/bases.scr::addbase axis "1071 290 298.99 -90 Cliff West"
+	}
 end
 
 
@@ -276,16 +305,17 @@ shingle_setup:
 end
 
 shingle_left_start:
-
-	$bangalore_trigger_left waittill trigger
-
-	local.player = parm.other
-
-	if (local.player.dmteam != axis || (level.ft_running && local.player.ft_pstate != "PSTATE_ALIVE"))
+	while ($bangalore_trigger_left != NULL)
 	{
-		goto shingle_left
-	}
+		$bangalore_trigger_left waittill trigger
+		local.player = parm.other
 
+		if (local.player.dmteam != axis && !local.player.mef_spectator)
+		{
+			waitthread shingle_left
+			end
+		}
+	}
 end
 
 shingle_left:
@@ -308,16 +338,17 @@ shingle_left:
 end
 
 shingle_center_start:
-
-	$bangalore_trigger_center waittill trigger
-
-	local.player = parm.other
-
-	if (local.player.dmteam != axis || (level.ft_running && local.player.ft_pstate != "PSTATE_ALIVE"))
+	while ($bangalore_trigger_center != NULL)
 	{
-		goto shingle_center
-	}
+		$bangalore_trigger_center waittill trigger
+		local.player = parm.other
 
+		if (local.player.dmteam != axis && !local.player.mef_spectator)
+		{
+			waitthread shingle_center
+			end
+		}
+	}
 end
 
 shingle_center:
@@ -342,16 +373,17 @@ shingle_center:
 end
 
 shingle_right_start:
-
-	$bangalore_trigger_right waittill trigger
-
-	local.player = parm.other
-
-	if (local.player.dmteam != axis || (level.ft_running && local.player.ft_pstate != "PSTATE_ALIVE"))
+	while ($bangalore_trigger_right != NULL)
 	{
-		goto shingle_right
-	}
+		$bangalore_trigger_right waittill trigger
+		local.player = parm.other
 
+		if (local.player.dmteam != axis && !local.player.mef_spectator)
+		{
+			waitthread shingle_right
+			end
+		}
+	}
 end
 
 shingle_right:
