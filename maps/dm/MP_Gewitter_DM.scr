@@ -1,7 +1,3 @@
-// REMAGEN
-// ARCHITECTURE: STAGGER
-// SCRIPTING: POWZER
-
 // **********************************************************************
 // Extended-Gametype Mapscript Version 1.0 (06-02-04)
 // By Mark Follett (Mefy)
@@ -14,28 +10,22 @@
 main:
 
 // set scoreboard messages
-setcvar "g_obj_alliedtext1" "Remagen"
-setcvar "g_obj_alliedtext2" ""
-setcvar "g_obj_alliedtext3" ""
+setcvar "g_obj_alliedtext1" "Gewitter"
+setcvar "g_obj_alliedtext2" "Contest Winner"
+setcvar "g_obj_alliedtext3" "By Rungsi"
 setcvar "g_obj_axistext1" ""
 setcvar "g_obj_axistext2" ""
 setcvar "g_obj_axistext3" ""
 
-setcvar "g_scoreboardpic" "mohdm3"
+setcvar "g_scoreboardpic" "mp_gewitter_dm.tga"
 
-	level.mef_mapname = "mohdm3"
+	level.mef_mapname = "mp_gewitter_dm"
 	level.mef_maptype = "dm"
-	level.mef_supportedgametypes = "ffa"::"tdm"::"rbm"::"ft"::"ctf"
+	level.mef_supportedgametypes = "ffa"::"tdm"::"rbm"::"ft"
 	level.mef_defaultgametype = "ft"
 
 	switch (waitthread global/libmef/util.scr::get_gametype)
 	{
-		case "ctf":
-			level.ctf_settings["alliedbase"] = "783 -1027 -63.88 0"
-			level.ctf_settings["axisbase"] = "3360 -2778 8.13 180"
-			thread global/libmef/ctf.scr::ctf_begin
-			break
-
 		case "ft":
 			thread global/libmef/ft.scr::ft_begin
 			break
@@ -44,19 +34,29 @@ setcvar "g_scoreboardpic" "mohdm3"
 			thread roundbasedthread
 			break
 	}
+		
+	level.script = maps/dm/mp_gewitter_dm.scr
+	level.music = mp_gewitter_dm	
+	exec global/dmprecache.scr mp_gewitter_dm
+	exec global/weather.scr 
+	exec global/ambient.scr 
+	exec global/door_locked.scr
 
-	level waittill prespawn
-	
-	//*** Precache Dm Stuff
-	exec global/DMprecache.scr
-	
-	level.script = maps/dm/mohdm3.scr
-	exec global/ambient.scr mohdm3
-	
-thread global/door_locked.scr::lock
+	$granatwerfer.collisionent = $granatwerfer_collision
+	$granatwerfer_turret0.collisionent = $granatwerfer_turret_collision
+	if (!level.ft_running)
+	{
+		$granatwerfer thread global/stationaryweapons.scr::MountedStationaryWeaponWithCollision "models/statweapons/p_granatwerfer_d.tik" $granatwerfer_destroyed_collision
+	}
+
+	level waitTill prespawn
 
 	level waittill spawn
-	$world farclipoverride -1
+
+	$world farplane_bias 250
+
+
+
 
 end
 
@@ -65,14 +65,14 @@ end
 roundbasedthread:
 
 	// Can specify different scoreboard messages for round based games here.
-
+	
 	level waitTill prespawn
 
 	level waittill spawn
 
 	// set the parameters for this round based match
 	level.dmrespawning = 0 // 1 or 0
-	level.dmroundlimit = 5 // round time limit in minutes
+//	level.dmroundlimit = 5 // round time limit in minutes
 	level.clockside = kills // set to axis, allies, kills, or draw
 
 	level waittill roundstart
