@@ -1,0 +1,377 @@
+/*
+================================================================================
+Spawn Blocking Library
+for Medal Of Honor: Allied Assault
+Version 1.0 (06/02/04)
+
+Copyright (c) 2004 Mark Follett
+email: mef123@geocities.com
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is furnished
+to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+================================================================================
+*/
+
+
+cycle_spawning local.delay:
+	while (1)
+	{
+		wait local.delay
+		$player[1] respawn
+	}
+end
+
+
+show_spawns local.spawns local.team:
+	for (local.i = 0; local.i < local.spawns.size; local.i++)
+	{
+		waitthread show_spawn local.spawns[local.i] local.team local.i
+	}
+end
+
+
+show_spawn local.spawn local.team local.id:
+	local.ent = spawn script_model
+
+	if (local.team == "allies")
+	{
+		local.ent model "player/allied_airborne.tik"
+	} else if (local.team == "axis")
+	{
+		local.ent model "player/german_panzer_tankcommander.tik"
+	} else
+	{
+		local.ent model "player/allied_manon.tik"
+	}
+
+	local.ent.origin = local.spawn.origin
+	local.ent.angles = local.spawn.angles
+	local.ent notsolid
+	
+	local.ent1 = spawn trigger_multiple
+	local.ent1.origin = local.ent.origin
+	local.ent1 setsize ( -10 -10 -10 ) ( 10 10 10 )
+	local.ent1 message (local.team + " " + local.id)
+end local.ent
+
+
+new_spawn local.region local.origin local.angle:
+	local.ent = spawn Listener
+	local.ent.region = local.region
+	local.ent.origin = local.origin
+	local.ent.angles = ( 0 local.angle 0 )
+end local.ent
+
+
+block_spawn_region local.spawns local.region:
+	local.blocks[0] = NIL
+	
+	for (local.i = 0; local.i < local.spawns.size; local.i++)
+	{
+		if (local.spawns[local.i].region == local.region)
+		{
+			local.blocks[local.blocks.size] = waitthread block_spawn local.spawns[local.i]
+		}
+	}
+end local.blocks
+
+
+remove_blocks local.blocks:
+	for (local.i = 0; local.i < local.blocks.size; local.i++)
+	{
+		local.blocks[local.i] remove
+	}
+end
+
+
+block_spawn local.spawn:
+	local.ent = spawn script_model
+
+	if (level.mef_gameversion == "aademo")
+	{
+		local.ent model "items/dm_50_healthbox.tik"
+	} else
+	{
+		local.ent model "fx/dummy.tik"
+	}
+
+	local.ent.origin = local.spawn.origin
+	local.ent solid
+	local.ent hide
+	local.ent setsize ( 0 0 0 ) ( 1 1 16 )
+end local.ent
+
+
+spawnblock_init:
+	switch (level.mef_mapname)
+	{
+		case "mohdm1":
+			waitthread init_spawns_mohdm1
+			break
+			
+		case "mohdm4":
+			waitthread init_spawns_mohdm4
+			break
+
+		case "mohdm6":
+			waitthread init_spawns_mohdm6
+			break
+
+		case "mohdm7":
+			waitthread init_spawns_mohdm7
+			break
+			
+		default:
+			end 0
+			break
+	}
+
+	if (level.mef_devmode)
+	{
+//		waitthread show_spawns level.st_alspawns "allies"
+//		waitthread show_spawns level.st_axspawns "axis"
+	}
+end 1
+
+
+spawnblock_thread local.alliedregion:
+	if (!(waitthread spawnblock_init))
+	{
+		end
+	}
+
+	if (local.alliedregion == 1)
+	{
+		local.axisregion = 2
+	} else
+	{
+		local.axisregion = 1
+	}
+
+	level waittill prespawn
+
+	local.alliedblocks = waitthread block_spawn_region level.st_alspawns local.alliedregion
+	local.axisblocks = waitthread block_spawn_region level.st_axspawns local.axisregion
+
+	level waittill spawn
+
+	if (!level.mef_devmode)
+	{
+		level waittill roundstart
+	}
+
+	wait 8
+
+	if (level.mef_devmode)
+	{
+//		iprintln "REMOVING SPAWN BLOCKS"
+	}
+	
+	waitthread remove_blocks local.alliedblocks
+	waitthread remove_blocks local.axisblocks
+end
+
+
+init_spawns_mohdm1:
+// axis spawns
+	level.st_axspawns[0]  = waitthread new_spawn 2 ( 1128 640 384 ) 90   // Northeast Dresser
+	level.st_axspawns[1]  = waitthread new_spawn 2 ( 784 792 384 ) 270   // Northeast Sofa
+	level.st_axspawns[2]  = waitthread new_spawn 1 ( -1208 1112 24 ) 0   // Southeast Path
+	level.st_axspawns[3]  = waitthread new_spawn 2 ( 1352 2528 672 ) 180 // Northwest Bed
+	level.st_axspawns[4]  = waitthread new_spawn 2 ( 1192 1568 392 ) 90  // Northwest Path #1
+	level.st_axspawns[5]  = waitthread new_spawn 2 ( -216 1232 384 ) 90  // Center Bed
+	level.st_axspawns[6]  = waitthread new_spawn 2 ( -216 1432 48 ) 270  // Center Armoire
+	level.st_axspawns[7]  = waitthread new_spawn 2 ( 1512 2744 392 ) 180 // Northwest Rug
+	level.st_axspawns[8]  = waitthread new_spawn 2 ( 608 1528 384 ) 225  // Center Crates
+	level.st_axspawns[9]  = waitthread new_spawn 2 ( 1448 2176 512 ) 180 // Northwest Path #2
+	level.st_axspawns[10] = waitthread new_spawn 1 ( -1056 664 168 ) 90  // Southeast Sofa
+	level.st_axspawns[11] = waitthread new_spawn 1 ( -1504 480 176 ) 0   // Southeast Bed
+	level.st_axspawns[12] = waitthread new_spawn 1 ( -1264 -16 136 ) 0   // Southeast Sector #1
+	level.st_axspawns[13] = waitthread new_spawn 1 ( -928 96 104 ) 270   // Southeast Sector #2
+	level.st_axspawns[14] = waitthread new_spawn 1 ( -848 -344 48 ) 0    // Southeast Sector #3
+	level.st_axspawns[15] = waitthread new_spawn 1 ( 896 -584 0 ) 135    // Northeast Sector Lower #1
+	level.st_axspawns[16] = waitthread new_spawn 1 ( 992 -48 0 ) 270     // Northeast Sector Lower #2
+	level.st_axspawns[17] = waitthread new_spawn 1 ( 912 -56 0 ) 270     // Northeast Sector Lower #3
+	level.st_axspawns[18] = waitthread new_spawn 1 ( 1104 -544 256 ) 90  // Northeast Sector Upper
+	level.st_axspawns[19] = waitthread new_spawn 1 ( -808 376 328 ) 270  // Southeast Crates
+
+// allied spawns
+	level.st_alspawns[0]  = waitthread new_spawn 2 ( 1176 672 384 ) 135  // Northeast Dresser
+	level.st_alspawns[1]  = waitthread new_spawn 2 ( 848 792 384) 270    // Northeast Sofa
+	level.st_alspawns[2]  = waitthread new_spawn 1 ( -1176 1064 24 ) 0   // Southeast Path
+	level.st_alspawns[3]  = waitthread new_spawn 2 ( 1376 2712 672 ) 180 // Northwest Bed
+	level.st_alspawns[4]  = waitthread new_spawn 2 ( 1232 1568 392 ) 90  // Northwest Path #1
+	level.st_alspawns[5]  = waitthread new_spawn 2 ( -264 1232 384 ) 90  // Center Bed
+	level.st_alspawns[6]  = waitthread new_spawn 2 ( -288 1240 48 ) 0    // Center Armoire
+	level.st_alspawns[7]  = waitthread new_spawn 2 ( 1512 2680 392 ) 180 // Northwest Rug
+	level.st_alspawns[8]  = waitthread new_spawn 2 ( 912 1336 384 ) 90   // Center Crates
+	level.st_alspawns[9]  = waitthread new_spawn 2 ( 1448 2216 512 ) 180 // Northwest Path #2
+	level.st_alspawns[10] = waitthread new_spawn 1 ( -1024 664 168 ) 90  // Southeast Sofa
+	level.st_alspawns[11] = waitthread new_spawn 1 ( -1504 304 176 ) 0   // Southeast Bed
+	level.st_alspawns[12] = waitthread new_spawn 1 ( -1272 32 136 ) 0    // Southeast Sector #1
+	level.st_alspawns[13] = waitthread new_spawn 1 ( -968 96 104 ) 270   // Southeast Sector #2
+	level.st_alspawns[14] = waitthread new_spawn 1 ( -816 -392 48 ) 0    // Southeast Sector #3
+	level.st_alspawns[15] = waitthread new_spawn 1 ( 976 -528 0 ) 135    // Northeast Sector Lower #1
+	level.st_alspawns[16] = waitthread new_spawn 1 ( 992 -104 0 ) 225    // Northeast Sector Lower #2
+	level.st_alspawns[17] = waitthread new_spawn 1 ( 912 -96 0 ) 270     // Northeast Sector Lower #3
+	level.st_alspawns[18] = waitthread new_spawn 1 ( 1144 -552 256 ) 135 // Northeast Sector Upper
+	level.st_alspawns[19] = waitthread new_spawn 1 ( -776 376 328 ) 270  // Southeast Crates
+	level.st_alspawns[20] = waitthread new_spawn 1 ( -704 352 -8 ) 90    // Southeast Barrels #1
+	level.st_alspawns[21] = waitthread new_spawn 1 ( -864 352 -16 ) 90   // Southeast Barrels #2
+end
+
+
+init_spawns_mohdm4:
+// axis spawns
+	level.st_axspawns[0]  = waitthread new_spawn 1 ( -896 4608 248 ) 315  // cart
+	level.st_axspawns[1]  = waitthread new_spawn 1 ( 468 4336 332 ) 270   // west gate #1
+	level.st_axspawns[2]  = waitthread new_spawn 1 ( 1292 3368 248 ) 225  // church alley
+	level.st_axspawns[3]  = waitthread new_spawn 2 ( 48 672 64 ) 180      // under bridge
+	level.st_axspawns[4]  = waitthread new_spawn 1 ( 632 3040 920 ) 180   // church tower #1
+	level.st_axspawns[5]  = waitthread new_spawn 2 ( 694 1592 28 ) 180    // storage room
+	level.st_axspawns[6]  = waitthread new_spawn 1 ( 672 2580 674 ) 135   // church tower #2
+	level.st_axspawns[7]  = waitthread new_spawn 1 ( -324 3756 658 ) 225  // west sniper house
+	level.st_axspawns[8]  = waitthread new_spawn 2 ( -794 -2032 256 ) 270 // east gate #1
+	level.st_axspawns[9]  = waitthread new_spawn 2 ( 848 -2192 244 ) 180  // east gate #2
+	level.st_axspawns[10] = waitthread new_spawn 2 ( 816 -1136 486 ) 180  // east sniper house
+	level.st_axspawns[11] = waitthread new_spawn 2 ( -1040 -1132 256 ) 90 // southeast path
+	level.st_axspawns[12] = waitthread new_spawn 1 ( -1040 2256 482 ) 0   // rug house first floor
+	level.st_axspawns[13] = waitthread new_spawn 1 ( -1340 2492 332 ) 90  // stone house
+	level.st_axspawns[14] = waitthread new_spawn 1 ( -1488 4076 248 ) 0   // south gate
+	level.st_axspawns[15] = waitthread new_spawn 1 ( 784 4588 248 ) 180   // west gate #2
+	level.st_axspawns[16] = waitthread new_spawn 1 ( -68 4188 24 ) 315    // sewer
+
+// allied spawns
+	level.st_alspawns[0]  = waitthread new_spawn 1 ( 1576 3112 248 ) 225  // church alley
+	level.st_alspawns[1]  = waitthread new_spawn 1 ( 336 3136 28 ) 270    // sewer
+	level.st_alspawns[2]  = waitthread new_spawn 1 ( -812 2452 248 ) 45   // west tree square
+	level.st_alspawns[3]  = waitthread new_spawn 1 ( -1256 2824 452 ) 315 // stone house
+	level.st_alspawns[4]  = waitthread new_spawn 1 ( 592 3080 926 ) 180   // church tower
+	level.st_alspawns[5]  = waitthread new_spawn 2 ( -502 -1384 256 ) 315 // east gate #1
+	level.st_alspawns[6]  = waitthread new_spawn 2 ( 848 -2384 244 ) 135  // east gate #2
+	level.st_alspawns[7]  = waitthread new_spawn 1 ( -528 2032 252 ) 90   // rug house first floor
+	level.st_alspawns[8]  = waitthread new_spawn 1 ( 624 2580 280 ) 90    // church door
+	level.st_alspawns[9]  = waitthread new_spawn 1 ( -1656 3108 192 ) 0   // south gate
+	level.st_alspawns[10] = waitthread new_spawn 2 ( 1252 1296 80 ) 180   // storage room
+	level.st_alspawns[11] = waitthread new_spawn 1 ( -1508 884 256 ) 45   // hotel stairs #1
+	level.st_alspawns[12] = waitthread new_spawn 1 ( -1372 1092 252 ) 0   // hotel stairs #2
+	level.st_alspawns[13] = waitthread new_spawn 1 ( -1328 2292 252 ) 315 // hotel courtyard
+	level.st_alspawns[14] = waitthread new_spawn 2 ( 1284 -804 192 ) 180  // east sniper first floor
+	level.st_alspawns[15] = waitthread new_spawn 2 ( 80 -3024 244 ) 135   // east gate #3
+end
+
+
+init_spawns_mohdm6:
+// axis spawns
+	level.st_axspawns[0]  = waitthread new_spawn 2 ( 240 -72 -136 ) 315  // Boiler Room
+	level.st_axspawns[1]  = waitthread new_spawn 2 ( -400 -720 48 ) 0    // East Bldg Staircase 1st Floor
+	level.st_axspawns[2]  = waitthread new_spawn 2 ( -420 -773 288 ) 45  // East Bldg Staircase 2nd Floor
+	level.st_axspawns[3]  = waitthread new_spawn 2 ( -664 -586 288 ) 90  // East Bldg 2nd Floor
+	level.st_axspawns[4]  = waitthread new_spawn 1 ( -400 856 -136 ) 0   // West Bldg Ground Floor
+	level.st_axspawns[5]  = waitthread new_spawn 1 ( 418 871 -136 ) 225  // West Bldg Staircase Bottom
+	level.st_axspawns[6]  = waitthread new_spawn 1 ( 244 1008 48 ) 0     // West Bldg 1st Floor North Side
+	level.st_axspawns[7]  = waitthread new_spawn 1 ( 236 1008 288 ) 0    // West Bldg 2nd Floor North Side
+	level.st_axspawns[8]  = waitthread new_spawn 1 ( -432 935 288 ) 270  // West Bldg 2nd Floor South Side Bathroom
+	level.st_axspawns[9]  = waitthread new_spawn 1 ( -432 935 48 ) 270   // West Bldg 1st Floor South Side Bathroom
+	level.st_axspawns[10] = waitthread new_spawn 1 ( -488 991 528 ) 270  // West Bldg 3rd Floor South Side Bathroom
+	level.st_axspawns[11] = waitthread new_spawn 1 ( -312 960 48 ) 0     // West Bldg 1st Floor South Side
+	level.st_axspawns[12] = waitthread new_spawn 1 ( -312 984 528 ) 0    // West Bldg 3rd Floor South Side
+	level.st_axspawns[13] = waitthread new_spawn 1 ( -280 968 288 ) 0    // West Bldg 2nd Floor South Side
+	level.st_axspawns[14] = waitthread new_spawn 1 ( 248 1040 528 ) 0    // West Bldg 3rd Floor North Side
+	level.st_axspawns[15] = waitthread new_spawn 2 ( -1152 8 512 ) 0     // South Bldg Staircase Top
+	level.st_axspawns[16] = waitthread new_spawn 2 ( -964 -168 262 ) 225 // South Bldg Staircase Bot
+	level.st_axspawns[17] = waitthread new_spawn 2 ( -484 -530 48 ) 0    // East Bldg 1st Floor
+	level.st_axspawns[18] = waitthread new_spawn 2 ( -1136 848 512 ) 0   // South Bldg 3rd Floor
+	level.st_axspawns[19] = waitthread new_spawn 2 ( -336 -492 -147 ) 0  // East Bldg Staircase Ground Floor
+	level.st_axspawns[20] = waitthread new_spawn 2 ( -624 816 -147 ) 270 // Courtyard South
+	level.st_axspawns[21] = waitthread new_spawn 2 ( 848 -48 -136 ) 90   // Courtyard North
+	level.st_axspawns[22] = waitthread new_spawn 1 ( 1008 608 314 ) 270  // North Roof
+	level.st_axspawns[23] = waitthread new_spawn 2 ( -586 -614 48 ) 90   // East Bldg 1st Floor Bathroom
+	level.st_axspawns[24] = waitthread new_spawn 2 ( -1136 849 260 ) 0   // South Bldg 2nd Floor
+
+// allied spawns
+	level.st_alspawns[0]  = waitthread new_spawn 2 ( 240 -136 -136 ) 315 // Boiler Room
+	level.st_alspawns[1]  = waitthread new_spawn 2 ( -408 -808 48 ) 0    // East Bldg Staircase 1st Floor
+	level.st_alspawns[2]  = waitthread new_spawn 2 ( -420 -845 288 ) 45  // East Bldg Staircase 2nd Floor
+	level.st_alspawns[3]  = waitthread new_spawn 2 ( -632 -610 288 ) 90  // East Bldg 2nd Floor
+	level.st_alspawns[4]  = waitthread new_spawn 1 ( -400 792 -136 )  0  // West Bldg Ground Floor
+	level.st_alspawns[5]  = waitthread new_spawn 1 ( 418 807 -136 ) 225  // West Bldg Staircase Bottom
+	level.st_alspawns[6]  = waitthread new_spawn 1 ( 244 984 48 ) 0      // West Bldg 1st Floor North Side
+	level.st_alspawns[7]  = waitthread new_spawn 1 ( 236 984 288 ) 0     // West Bldg 2nd Floor North Side
+	level.st_alspawns[8]  = waitthread new_spawn 1 ( -432 911 288 ) 270  // West Bldg 2nd Floor South Side Bathroom
+	level.st_alspawns[9]  = waitthread new_spawn 1 ( -432 911 48 ) 270   // West Bldg 1st Floor South Side Bathroom
+	level.st_alspawns[10] = waitthread new_spawn 1 ( -408 991 528 ) 270  // West Bldg 3rd Floor South Side Bathroom
+	level.st_alspawns[11] = waitthread new_spawn 1 ( -312 896 48 ) 0     // West Bldg 1st Floor South Side
+	level.st_alspawns[12] = waitthread new_spawn 1 ( -312 896 528 ) 0    // West Bldg 3rd Floor South Side
+	level.st_alspawns[13] = waitthread new_spawn 1 ( -280 904 288 ) 0    // West Bldg 2nd Floor South Side
+	level.st_alspawns[14] = waitthread new_spawn 1 ( 248 944 528 ) 0     // West Bldg 3rd Floor North Side
+	level.st_alspawns[15] = waitthread new_spawn 2 ( -1152 -72 512 ) 0   // South Bldg Staircase Top
+	level.st_alspawns[16] = waitthread new_spawn 2 ( -964 -192 262 ) 225 // South Bldg Staircase Bot
+	level.st_alspawns[17] = waitthread new_spawn 2 ( -484 -610 48 ) 0    // East Bldg 1st Floor
+	level.st_alspawns[18] = waitthread new_spawn 2 ( -1136 784 512 ) 0   // South Bldg 3rd Floor
+	level.st_alspawns[19] = waitthread new_spawn 2 ( -336 -556 -147 ) 0  // East Bldg Staircase Ground Floor
+	level.st_alspawns[20] = waitthread new_spawn 2 ( -704 800 -147 ) 270 // Courtyard South
+	level.st_alspawns[21] = waitthread new_spawn 2 ( 912 -48 -136 ) 90   // Courtyard North
+	level.st_alspawns[22] = waitthread new_spawn 1 ( 1072 608 314 ) 270  // North Roof
+	level.st_alspawns[23] = waitthread new_spawn 2 ( -650 -614 48 ) 90   // East Bldg 1st Floor Bathroom
+	level.st_alspawns[24] = waitthread new_spawn 2 ( -1136 785 260 ) 0   // South Bldg 2nd Floor
+end
+
+
+init_spawns_mohdm7:
+// axis spawns
+	level.st_axspawns[0]  = waitthread new_spawn 2 ( -2240 -936 -136 ) 90 // East Path
+	level.st_axspawns[1]  = waitthread new_spawn 2 ( 816 -1056 -280 ) 225 // Northeast Crates
+	level.st_axspawns[2]  = waitthread new_spawn 1 ( -1424 1240 -96 ) 90  // Loggia
+	level.st_axspawns[3]  = waitthread new_spawn 1 ( -3504 3184 288 ) 0   // Courtyard Top
+	level.st_axspawns[4]  = waitthread new_spawn 2 ( 1392 -96 24 ) 180    // North Pediment
+	level.st_axspawns[5]  = waitthread new_spawn 1 ( -2448 1656 8 ) 0     // Mosque Front #1
+	level.st_axspawns[6]  = waitthread new_spawn 2 ( -1112 1432 -88 ) 0   // Center Path
+	level.st_axspawns[7]  = waitthread new_spawn 1 ( -3104 1296 8 ) 270   // Mosque Interior
+	level.st_axspawns[8]  = waitthread new_spawn 1 ( -3808 2064 8 ) 270   // Mosque Back
+	level.st_axspawns[9]  = waitthread new_spawn 1 ( -2016 3216 8 ) 315   // Mosque Front #2
+	level.st_axspawns[10] = waitthread new_spawn 1 ( -2908 784 288 ) 0    // Mosque Top
+	level.st_axspawns[11] = waitthread new_spawn 1 ( -3176 1232 272 ) 0   // Mosque Radio
+	level.st_axspawns[12] = waitthread new_spawn 2 ( 592 1680 124 ) 180   // North Sniper House
+	level.st_axspawns[13] = waitthread new_spawn 2 ( 1904 -1092 32 ) 180  // Northeast Inside Upper
+	level.st_axspawns[14] = waitthread new_spawn 2 ( 1684 -912 -284 ) 270 // Northeast Inside Lower
+	level.st_axspawns[15] = waitthread new_spawn 2 ( 512 -936 -144 ) 90   // Northeast Outside
+	level.st_axspawns[16] = waitthread new_spawn 1 ( -3024 482 -94 ) 225  // Beds
+	level.st_axspawns[17] = waitthread new_spawn 2 ( -1598 -1430 -270 ) 0 // East Deadend
+
+
+// allied spawns
+	level.st_alspawns[0]  = waitthread new_spawn 2 ( -2304 -936 -136 ) 90 // East Path
+	level.st_alspawns[1]  = waitthread new_spawn 2 ( 896 -1056 -280 ) 225 // Northeast Crates
+	level.st_alspawns[2]  = waitthread new_spawn 1 ( -1504 1240 -96 ) 90  // Loggia
+	level.st_alspawns[3]  = waitthread new_spawn 1 ( -3504 3152 288 ) 0   // Courtyard Top
+	level.st_alspawns[4]  = waitthread new_spawn 2 ( 1464 -96 24 ) 180    // North Pediment
+	level.st_alspawns[5]  = waitthread new_spawn 1 ( -2448 1736 8 ) 0     // Mosque Front #1
+	level.st_alspawns[6]  = waitthread new_spawn 2 ( -1176 1432 -88 ) 0   // Center Path
+	level.st_alspawns[7]  = waitthread new_spawn 1 ( -3024 1296 8 ) 270   // Mosque Interior
+	level.st_alspawns[8]  = waitthread new_spawn 1 ( -3840 2064 8 ) 270   // Mosque Back
+	level.st_alspawns[9]  = waitthread new_spawn 1 ( -2080 3152 8 ) 315   // Mosque Front #2
+	level.st_alspawns[10] = waitthread new_spawn 1 ( -2908 864 288 ) 0    // Mosque Top
+	level.st_alspawns[11] = waitthread new_spawn 1 ( -3176 1152 272 ) 0   // Mosque Radio
+	level.st_alspawns[12] = waitthread new_spawn 2 ( 592 1608 124 ) 180   // North Sniper House
+	level.st_alspawns[13] = waitthread new_spawn 2 ( 1904 -1164 32 ) 180  // Northeast Inside Upper
+	level.st_alspawns[14] = waitthread new_spawn 2 ( 1612 -912 -284 ) 270 // Northeast Inside Lower
+	level.st_alspawns[15] = waitthread new_spawn 2 ( 584 -936 -144 ) 90   // Northeast Outside
+	level.st_alspawns[16] = waitthread new_spawn 1 ( -2938 388 -94 ) 180  // Beds
+	level.st_alspawns[17] = waitthread new_spawn 2 ( -1598 -1502 -270 ) 0 // East Deadend
+end

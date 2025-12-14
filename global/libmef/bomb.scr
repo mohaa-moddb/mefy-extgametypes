@@ -1,0 +1,317 @@
+
+// **********************************************************************
+// Revised Bomb Code Version 1.0 (06-02-04)
+// By Mark Follett (Mefy)
+// email: mef123@geocities.com
+// web: www.planetmedalofhonor.com/mefy
+// You are free to modify and redistribute as long as you keep these
+// credits.
+// **********************************************************************
+
+
+new_bomb local.origin local.angles local.team local.target:
+	local.bomb = spawn script_model
+	local.bomb model "items/pulse_explosive.tik"
+	local.bomb.origin = local.origin
+	local.bomb.angles = local.angles
+
+	local.bomb.trigger_name = spawn trigger_use
+	local.bomb.trigger_name.origin = local.bomb.origin
+	local.bomb.trigger_name.angles = local.bomb.angles
+	local.bomb.triggerent = local.bomb.trigger_name
+
+	local.bomb.target = local.target
+	local.bomb.planting_team = local.team
+	local.bomb.defusing_team = waitthread global/libmef/util.scr::get_other_team local.team
+
+	local.bomb.bomb_defuse_time = level.bomb_defuse_time
+	local.bomb.bomb_set_time = level.bomb_set_time
+	local.bomb.bomb_tick_time = level.bomb_tick_time
+	local.bomb.bomb_explosion_radius = level.bomb_explosion_radius
+	local.bomb.bomb_use_distance = level.bomb_use_distance
+	local.bomb.bomb_damage = level.bomb_damage
+	local.bomb.bombusefov = level.bombusefov
+
+	local.bomb.explosion_sound = "grenade_explode"
+	local.bomb.explosion_fx = "fx/fx_flak88_explosion.tik"
+end local.bomb
+
+
+bomb_thinker:
+// Steve says planting time = 6 seconds
+// defusing time = 12 second
+// tick time = 36 seconds
+
+	self.bomb_defuse_time = 60 //tenths of a second
+	self.bomb_set_time = 50  //tenths of a second
+	self.bomb_tick_time = 45  //seconds (was 60 seconds, then 30 seconds)
+//	self.wait_after_explode = 2  //seconds time after target is destroyed before the level ends (no longer used, done in code now)
+	self.bomb_explosion_radius = 1054  //quake units
+	self.bomb_use_distance = 128 //quake units
+	self.bomb_damage = 200
+	self.bombusefov = 30
+	
+	self.planting_team = level.planting_team
+	self.defusing_team = level.defusing_team
+	
+	self.triggerent = $(self.trigger_name)
+	
+	waitthread bomb_thread
+end
+
+
+bomb_thread:
+	self.bomb_set = 0
+	self.timeleft = 0.0
+	self.exploded = 0
+	self.target.collisionent = self.target.target
+	self.target notsolid
+	thread bomb_waittill_used
+end
+
+
+bomb_waittill_used:
+	local.trigger = self.triggerent
+
+	while (local.trigger != NULL)
+	{
+		local.trigger waittill trigger
+
+		local.player = parm.other
+	        if (local.trigger != NULL && (waitthread player_can_use_bomb self local.player))
+	        {
+			if (local.player.dmteam == self.planting_team)
+			{
+				local.presstime = self.bomb_set_time
+			} else
+			{
+				local.presstime = self.bomb_defuse_time
+			}
+
+			local.counter = 0
+			while (local.trigger != NULL && local.player != NULL && (Isalive local.player) && (waitthread player_can_use_bomb self local.player) && (local.player cansee self self.bombusefov self.bomb_use_distance) && local.player.useheld)
+			{
+				if (local.counter >= local.presstime)
+				{
+					if (local.player.dmteam == self.planting_team)
+					{
+						// bomb was planted
+						self.bomb_set = 1
+						waitthread bomb_set_event self local.player
+					} else
+					{
+						// bomb was defused
+						self.bomb_set = 0
+						waitthread bomb_defused_event self local.player
+					}
+					goto complete
+				}
+				
+				if (local.counter == 0)
+				{
+					local.player stopwatch (local.presstime * .1)
+					local.player.mef_pressingbutton = 1
+				}
+
+				wait .1
+				local.counter++
+			}
+
+complete:
+			if (local.counter > 0)
+			{
+				if (local.player != NULL)
+				{
+					local.player stopwatch 0
+					local.player.mef_pressingbutton = 0
+				}
+			}
+		}
+	}
+end
+
+
+player_can_use_bomb local.bomb local.player:
+	if (((!local.bomb.bomb_set && local.player.dmteam == local.bomb.planting_team) || \
+	    (local.bomb.bomb_set && local.player.dmteam == local.bomb.defusing_team)) &&
+	    !local.bomb.exploded && !(level.ft_running && local.player.ft_pstate != "PSTATE_ALIVE"))
+	{
+		end 1
+	}
+end 0
+
+
+bomb_set_event local.bomb local.player:
+	local.str = "A Bomb has been planted!"
+	if (local.bomb.desc != NIL)
+	{
+		local.str += (" [" + local.bomb.desc + "]")
+	}
+	local iprintlnbold_noloc local.str
+	if (local.bomb.planting_team == "allies")
+	{
+		local.bomb playsound dfr_objective_o
+	} else
+	{
+		local.bomb playsound den_objective_o
+	}
+
+	local.bomb.planter = local.player
+	if (local.bomb.set_thread != NIL)
+	{
+		waitthread local.bomb.set_thread
+	}
+	level.bomb_set ++
+	level.bombs_planted++
+	thread bomb_countdown local.bomb
+end
+
+
+bomb_defused_event local.bomb local.player:
+	local.str = "A Bomb has been defused!"
+	if (local.bomb.desc != NIL)
+	{
+		local.str += (" [" + local.bomb.desc + "]")
+	}
+	local iprintlnbold_noloc local.str
+	if (local.bomb.defusing_team == "allies")
+	{
+		local.bomb playsound dfr_diffused_d
+	} else
+	{
+		local.bomb playsound den_diffused_d
+	}
+
+	local.bomb.planter = NIL
+	local.bomb.timeleft = 1.0
+	if (local.bomb.defuse_thread != NIL)
+	{
+		waitthread local.bomb.defuse_thread
+	}
+	level.bomb_set --
+	level.bombs_planted--
+end
+
+
+bomb_countdown local.bomb:
+	local.bomb model items/explosive.tik
+	local.bomb playsound plantbomb
+	local.bomb loopsound bombtick
+
+	local.starttime = level.time
+	local.elapsed = 0
+
+	while (local.elapsed < local.bomb.bomb_tick_time && local.bomb.bomb_set)
+	{
+		local.elapsed = level.time - local.starttime
+		local.bomb.timeleft = ((local.bomb.bomb_tick_time - local.elapsed) / local.bomb.bomb_tick_time)
+		
+		if (local.elapsed == (local.bomb.bomb_tick_time - 10))
+		{
+			local.bomb stoploopsound
+			local.bomb loopsound final_countdown
+		}
+		
+		wait .1
+ 	}
+
+	local.bomb stoploopsound
+
+	if (local.bomb.bomb_set)
+	{
+		local.bomb.exploded = 1
+		local.bomb.timeleft = 0.0
+		local.bomb thread bomb_explode
+	} else
+	{
+		local.bomb model items/pulse_explosive.tik
+	}
+end
+
+
+//***********************************************
+// fourth thread... controls the explosion 
+//***********************************************
+bomb_explode:
+	self.trigger_name remove
+
+	thread jitter_large 0
+	
+	if (self.exploder_set != NIL)
+		exec global/exploder.scr::explode self.exploder_set
+	
+	if (self.explosion_fx != NIL)
+	{
+		self thread spawn_fx self.explosion_fx
+	}
+	
+	if (self.explosion_sound != NIL)
+		self playsound self.explosion_sound
+
+	if (self.target != NIL)
+	{
+		if (self.target.destroy_thread != NIL)
+		{
+			self.target waitthread self.target.destroy_thread
+		} else
+		{
+			if (self.target.destroyed_model != NIL)
+			{
+				local.damaged = self.target thread spawn_damaged self.target.destroyed_model
+			}
+			self.target remove
+			waitframe
+		}
+	}
+
+	radiusdamage self.origin self.bomb_damage self.bomb_explosion_radius
+	if (self.killarea != NIL)
+	{
+		self.killarea volumedamage 1000
+	}
+	self hide
+	
+	self.bomb_set = 0
+	level.targets_destroyed = level.targets_destroyed + 1
+
+	if (self.explode_thread != NIL)
+	{
+		waitthread self.explode_thread
+	}
+
+	// we delay the decrementing of	self.bomb_set so that the script has
+	// time to determin the winner before the timelimit gets checked and hit
+	wait 0.5
+	level.bomb_set --
+	level.bombs_planted--
+end
+
+
+//----------------------------------
+spawn_fx local.fx:
+	local.temp = spawn script_model model local.fx
+	local.temp.origin = self.origin
+	local.temp anim start
+	wait 5
+	local.temp remove
+end
+
+spawn_damaged local.model:
+	local.damaged = spawn script_model model local.model
+	local.damaged.origin = self.origin
+	local.damaged.angles = self.angles
+end local.damaged
+
+//******************************
+// jitter large effect
+// jitter_large [delay]
+//******************************
+jitter_large local.time:
+	if (local.time)
+		wait local.time
+
+	waitexec global/earthquake.scr .35 10 0 0
+	waitexec global/earthquake.scr .23 6 0 0
+	waitexec global/earthquake.scr 1 1 0 0
+	waitexec global/earthquake.scr 1.25 .3 0 1
+end

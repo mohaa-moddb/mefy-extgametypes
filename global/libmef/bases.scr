@@ -1,0 +1,258 @@
+/*
+================================================================================
+Base Selection Library
+for Medal Of Honor: Allied Assault
+Version 1.0 (06/02/04)
+
+Copyright (c) 2004 Mark Follett
+email: mef123@geocities.com
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is furnished
+to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+================================================================================
+*/
+
+
+init_base_arrays:
+	if (level.mef_albases == NIL)
+	{
+		level.mef_albases[0] = NIL
+	}
+			
+	if (level.mef_axbases == NIL)
+	{
+		level.mef_axbases[0] = NIL
+	}
+
+	if (level.mef_dmbases == NIL)
+	{
+		level.mef_dmbases[0] = NIL
+	}
+
+	if (level.mef_basepairs == NIL)
+	{
+		level.mef_basepairs[0] = NIL
+	}
+end
+
+
+addbase local.team local.pos:
+	waitthread init_base_arrays
+	if (local.team == "allies")
+	{
+		level.mef_albases[level.mef_albases.size] = local.pos
+	} else if (local.team == "axis")
+	{
+		level.mef_axbases[level.mef_axbases.size] = local.pos
+	} else
+	{
+		level.mef_dmbases[level.mef_dmbases.size] = local.pos
+	}
+end
+
+
+addbasepair local.alpos local.axpos:
+	waitthread init_base_arrays
+	local.id = level.mef_basepairs.size
+	level.mef_basepairs[local.id][0] = local.alpos
+	level.mef_basepairs[local.id][1] = local.axpos
+end
+
+
+select_baseid local.total:
+	if (local.total > 0)
+	{
+		local.lastbase = (int(getcvar "g_mef_lastbase"))
+		
+		if (local.total > 1)
+		{
+			if (local.lastbase < local.total)
+			{
+				local.nextbase = randomint(local.total - 1)
+				if (local.nextbase >= local.lastbase)
+				{
+					local.nextbase++
+				}
+			} else
+			{
+				local.nextbase = randomint(local.total)
+			}
+		} else
+		{
+			local.nextbase = 0
+		}
+		
+		setcvar "g_mef_lastbase" local.nextbase
+	}
+end local.nextbase
+
+
+select_basepair:
+	waitthread init_base_arrays
+	
+	local.a = level.mef_albases.size
+	local.g = level.mef_axbases.size
+	local.b = level.mef_dmbases.size
+	local.p = level.mef_basepairs.size
+
+	local.ag = local.a * local.g
+	local.bg = local.b * local.g
+	local.ab = local.a * local.b
+	local.bb = local.b * (local.b - 1)
+	
+	local.bgs = local.ag
+	local.abs = local.bgs + local.bg
+	local.bbs = local.abs + local.ab
+	local.ps = local.bbs + local.bb
+	local.total = local.ps + local.p
+
+	local.nextbase = waitthread select_baseid local.total
+
+	if (local.nextbase != NIL)
+	{
+		if (local.nextbase >= local.ps && local.p > 0)
+		{
+			local.nextbase -= local.ps
+			local.albase = level.mef_basepairs[local.nextbase][0]
+			local.axbase = level.mef_basepairs[local.nextbase][1]
+		} else if (local.nextbase >= local.bbs && local.bb > 0)
+		{
+			local.nextbase -= local.bbs
+			local.albaseid = local.nextbase % (local.b - 1)
+			local.axbaseid = (local.nextbase - local.albaseid) / (local.b - 1)
+			if (local.albaseid >= local.axbaseid)
+			{
+				 local.albaseid++
+			}
+			local.albase = level.mef_dmbases[local.albaseid]
+			local.axbase = level.mef_dmbases[local.axbaseid]
+		} else if (local.nextbase >= local.abs && local.ab > 0)
+		{
+			local.nextbase -= local.abs
+			local.albaseid = local.nextbase % local.a
+			local.axbaseid = (local.nextbase - local.albaseid) / local.a
+			local.albase = level.mef_albases[local.albaseid]
+			local.axbase = level.mef_dmbases[local.axbaseid]
+		} else if (local.nextbase >= local.bgs && local.bg > 0)
+		{
+			local.nextbase -= local.bgs
+			local.albaseid = local.nextbase % local.b
+			local.axbaseid = (local.nextbase - local.albaseid) / local.b
+			local.albase = level.mef_dmbases[local.albaseid]
+			local.axbase = level.mef_axbases[local.axbaseid]
+		} else if (local.ag > 0)
+		{
+			local.albaseid = local.nextbase % local.a
+			local.axbaseid = (local.nextbase - local.albaseid) / local.a
+			local.albase = level.mef_albases[local.albaseid]
+			local.axbase = level.mef_axbases[local.axbaseid]
+		}
+	} else
+	{
+		local.albase = "0 0 0 0 Error - No Base Pairs Defined"
+		local.axbase = local.albase
+	}
+end (local.albase::local.axbase)
+
+
+select_base local.team:
+	waitthread init_base_arrays
+
+	if (local.team == "allies")
+	{
+		local.bases = level.mef_albases
+		local.idx = 0
+	} else
+	{
+		local.bases = level.mef_axbases
+		local.idx = 1
+	}
+	
+	local.t = local.bases.size
+	local.b = level.mef_dmbases.size
+	local.p = level.mef_basepairs.size
+	
+	local.bs = local.t
+	local.ps = local.bs + local.b
+	local.total = local.ps + local.p
+	
+	local.nextbase = waitthread select_baseid local.total
+
+	if (local.nextbase != NIL)
+	{
+		if (local.nextbase >= local.ps && local.p > 0)
+		{
+			local.nextbase -= local.ps
+			local.base = level.mef_basepairs[local.nextbase][local.idx]
+		} else if (local.nextbase >= local.bs && local.b > 0)
+		{
+			local.nextbase -= local.bs
+			local.base = level.mef_dmbases[local.nextbase]
+		} else if (local.t > 0)
+		{
+			local.base = local.bases[local.nextbase]
+		}
+	} else
+	{
+		local.base = "0 0 0 0 Error - No " + local.team + "Base Defined"
+	}
+end local.base
+
+
+debug_showbases:
+	waitthread init_base_arrays
+	waitthread debug_showbaselist level.mef_albases "allied_airborne" "allies"
+	waitthread debug_showbaselist level.mef_axbases "german_panzer_tankcommander" "axis"
+	waitthread debug_showbaselist level.mef_dmbases "allied_manon" "both"
+	waitthread debug_showbasepairlist level.mef_basepairs "american_army" "german_wehrmacht_soldier" "allies/axis"
+end
+
+
+debug_showbaselist local.blist local.model local.msg:
+	for (local.i = 0; local.i < local.blist.size; local.i++)
+	{
+		waitthread debug_showbase local.blist[local.i] local.model (local.msg + " " + local.i)
+	}
+end
+
+
+debug_showbasepairlist local.blist local.almodel local.axmodel local.msg:
+	for (local.i = 0; local.i < local.blist.size; local.i++)
+	{
+		waitthread debug_showbase local.blist[local.i][0] local.almodel (local.msg + " " + local.i)
+		waitthread debug_showbase local.blist[local.i][1] local.axmodel (local.msg + " " + local.i)
+	}
+end
+
+
+debug_showbase local.pos local.model local.msg:
+	local.base = waitthread global/libmef/util.scr::read_position_string local.pos
+
+	local.ent = spawn script_model
+	local.ent model ("player/" + local.model + ".tik")
+	local.ent.origin = local.base.origin
+	local.ent.angles = local.base.angles
+	local.ent notsolid
+	
+	local.trig = spawn trigger_multiple
+	local.trig.origin = local.ent.origin
+	local.trig setsize ( -10 -10 -10 ) ( 10 10 10 )
+	local.trig message local.msg
+
+	local.base delete
+end

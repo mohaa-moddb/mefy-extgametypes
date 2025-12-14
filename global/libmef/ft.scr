@@ -1,0 +1,2013 @@
+/*
+================================================================================
+Server-Side Freeze-Tag Gametype Library
+for Medal Of Honor: Allied Assault
+Version 1.1 (06/02/04)
+
+Copyright (c) 2003-2004 Mark Follett
+email: mef123@geocities.com
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is furnished
+to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+================================================================================
+*/
+
+
+ft_begin:
+//	thread global/libmef/fttest.scr::fttest_thread
+
+	level.ft_running = 1
+	level.ft_version = "1.1"
+	setcvar "g_ft_version" level.ft_version
+
+	level.mef_credits[0] = "Freeze-Tag MOD"
+	level.mef_credits[1] = ("Version " + level.ft_version)
+	level.mef_credits[2] = "by Mefy"
+	level.mef_credits[3] = "planetmedalofhonor.com/"
+	level.mef_credits[4] = "mefy"
+	level.mef_credits[5] = ""
+
+	level.ft_settings[0] = NIL
+	level.mef_settings = level.ft_settings
+
+	level.ft_settingsdef[0] = "disable"::bool::0
+	level.ft_settingsdef[1] = "suddendeath"::int::1
+	level.ft_settingsdef[2] = "melttime"::int::20
+	level.ft_settingsdef[3] = "meltradius"::int::100
+	level.ft_settingsdef[4] = "meltgun"::bool::1
+	level.ft_settingsdef[5] = "allowjoin"::bool::1
+	level.ft_settingsdef[6] = "announce"::string::"frozen melted bodycodes"
+	level.ft_settingsdef[7] = "observe"::string::"bodies"
+
+	waitthread global/libmef/util.scr::read_game_settings level.ft_settingsdef
+	waitthread global/libmef/util.scr::read_options level.ft_settings["announce"] "announce" frozen::melted::bodycodes
+	waitthread global/libmef/util.scr::read_options level.ft_settings["observe"] "observe" freefloat::bodies
+
+	if (level.ft_settings["melttime"] < 1)
+	{
+		level.ft_settings["melttime"] = 1
+	}
+
+	level.ft_allowjointime = int(getcvar "g_allowjointime")
+
+	if (level.mef_newmap && level.ft_allowjointime < 30)
+	{
+		level.ft_allowjointime = 30
+	}
+
+	level.ft_inactiveping = int(getcvar "g_inactivespectate")
+
+	if (level.ft_inactiveping <= 0)
+	{
+		level.ft_inactiveping = 0
+	} else
+	{
+		level.ft_inactiveping = level.ft_inactiveping - 17
+		if (level.ft_inactiveping < 1)
+		{
+			level.ft_inactiveping = 1
+		}
+	}
+
+	level.ft_playerexplosion_damage = 200
+	level.ft_playerexplosion_radius = 52
+	level.ft_observe_switchtargetkey = "use"
+	level.ft_observe_msgstring = waitthread make_observer_msg_string
+	level.ft_meltrate = 0.006
+
+	level.ft_deathanims[0] = "death_fall_to_knees"
+	level.ft_deathanims[1] = "death_fall_back"
+	level.ft_deathanims[2] = "death_chest"
+	level.ft_deathanims[3] = "death_choke"
+	level.ft_deathanims[4] = "death_crotch"
+	level.ft_deathanims[5] = "death_headpistol"
+	level.ft_deathanims[6] = "death_frontchoke"
+	level.ft_deathanims[7] = "death_twist"
+	level.ft_deathanims[8] = "death_collapse"
+	level.ft_deathanims[9] = "death_shoot"
+
+	level.ft_lasersound["allies"] = "m2l3_machine_loop"
+	level.ft_lasersound["axis"] = "m2l3_radio1"
+	level.ft_meltingsound = "welding_torch"
+	level.ft_laservolume = 1.0
+
+	level.ft_frozencolor["allies"] = ( 0.0 0.0 1.0 )
+	level.ft_frozencolor["axis"] = ( 1.0 0.0 0.0 )
+	level.ft_meltingcolor["allies"] = ( 0.0 1.0 1.0 )
+	level.ft_meltingcolor["axis"] = ( 1.0 1.0 0.0 )
+	level.ft_enemycolor["allies"] = ( 0.4 0.0 1.0 )
+	level.ft_enemycolor["axis"] = ( 1.0 0.0 0.4 )
+	level.ft_enemymeltcolor["allies"] = ( 0.5 1.0 1.0 )
+	level.ft_enemymeltcolor["axis"] = ( 1.0 1.0 0.5 )
+
+	if (!level.mef_devmode)
+	{
+		level.ft_checkwin = 1
+	}
+
+	if (level.mef_gametype == "ft")
+	{
+		if (level.mef_maptype == "obj")
+		{
+			level.mef_basegametype = 4 // Objective-Match
+		} else
+		{
+			level.mef_basegametype = 3 // Round-Based-Match
+		}
+
+		if (level.mef_settings["meltgun"])
+		{
+			setcvar "g_obj_alliedtext1" "Stand next to a frozen"
+			setcvar "g_obj_alliedtext2" "teammate to melt them"
+			setcvar "g_obj_alliedtext3" "or hold Use(e) to fire"
+			setcvar "g_obj_axistext1" "your melting laser"
+			setcvar "g_obj_axistext2" ("Freeze-Tag MOD " + level.ft_version)
+			setcvar "g_obj_axistext3" "by Mefy"
+		} else
+		{
+			setcvar "g_obj_alliedtext1" "Freeze the enemy team"
+			setcvar "g_obj_alliedtext2" "Stand next to a frozen"
+			setcvar "g_obj_alliedtext3" "teammate to melt them"
+			
+			if (level.mef_basegametype == 4)
+			{
+				setcvar "g_obj_axistext1" ("Freeze-Tag MOD " + level.ft_version)
+				setcvar "g_obj_axistext2" "by Mefy"
+				setcvar "g_obj_axistext3" ""
+			} else
+			{
+				setcvar "g_obj_axistext1" ""
+				setcvar "g_obj_axistext2" ("Freeze-Tag MOD " + level.ft_version)
+				setcvar "g_obj_axistext3" "by Mefy"
+			}
+		}
+	} else
+	{
+		// Freeze-Tag-Objective
+		level.mef_basegametype = 4 // Objective-Match
+	}
+
+	setcvar "g_gametype" level.mef_basegametype
+
+	waitthread global/libmef/mapdesc.scr::setup_map level.mef_mapname
+
+	level waittill prespawn
+
+	level.dmrespawning = 1  // 1 or 0
+
+	if (level.mef_gametype == "ft")
+	{
+		level.dmroundlimit = 7 // round time limit in minutes
+	}
+	
+	level waittill spawn
+
+	if (!level.mef_devmode)
+	{
+		level waittill roundstart
+	}
+
+	if (!level.ft_dontremoveturrets)
+	{
+		if (level.mef_baseversion == "sh" || level.mef_baseversion == "bt")
+		{
+			removeclass FixedTurret
+			removeclass PortableTurret
+			removeclass CarryableTurret
+		}
+		removeclass TurretGun
+	}
+
+	level.ft_hudstatus["allies"] = 0
+	level.ft_hudstatus["axis"] = 0
+	level.ft_bodydesc["allies"] = ""
+	level.ft_bodydesc["axis"] = ""
+	level.ft_numplayers["allies"] = 0
+	level.ft_numplayers["axis"] = 0
+	level.ft_totplayers["allies"] = 0
+	level.ft_totplayers["axis"] = 0
+
+	level.ft_hudiconsize["allies"] = 25
+	level.ft_hudiconsize["axis"] = 25
+	level.ft_hudtextcolor["allies"] = ( 1.0 1.0 1.0 )
+	level.ft_hudtextcolor["axis"] = ( 1.0 1.0 1.0 )
+
+	level.ft_sdhud = waitthread global/libmef/util.scr::register_hud_item 1 global/libmef/ft.scr::setup_sd_display global/libmef/ft.scr::update_sd_display
+	level.ft_bodyhud = waitthread global/libmef/util.scr::register_hud_item 4 global/libmef/ft.scr::setup_body_display global/libmef/ft.scr::update_body_display
+
+	level.ft_nextplayerid = 0
+	level.ft_players[0] = NIL
+
+	thread auto_broadcast_ents 0.5
+	thread regulation_round
+	thread check_num_players_changed "allies"
+	thread check_num_players_changed "axis"
+	thread check_hudstatus_change "allies"
+	thread check_hudstatus_change "axis"
+	thread spectator_join_thread level.ft_allowjointime
+	thread player_check_loop
+	if (level.ft_settings["meltgun"])
+	{
+		thread auto_collision_check
+	}
+end
+
+
+make_observer_msg_string:
+	if (level.ft_observe_switchtargetkey == "use")
+	{
+		local.switchtarget = "Use(e)"
+		local.freefloat = "Fire"
+	} else
+	{
+		local.switchtarget = "Fire"
+		local.freefloat = "Use(e)"
+	}
+
+	local.str = "Press " + local.switchtarget + " to follow a different player."
+	
+	if (level.ft_settings["observe_freefloat"])
+	{
+		local.str += (" Press " + local.freefloat + " to free spectate.")
+	}
+end local.str
+
+
+regulation_round:
+	level.ft_spawnfrozenbodies = 1
+	
+	if (level.mef_gametype == "ft")
+	{
+		waitthread global/libmef/util.scr::turn_off_clock
+	} else
+	{
+		level.bombs_planted = 1
+		level.bomb_set = 1
+	}
+
+	if (level.ft_settings["suddendeath"] > 0)
+	{
+		local.suddendeath = 1
+	}
+
+	local.starttime = level.time
+	while (1)
+	{
+		wait 1
+		local.elapsedtime = level.time - local.starttime
+
+		if (local.elapsedtime >= ((level.dmroundlimit * 60) - 1) && !level.mef_gameover && !(level.mef_gametype == "ftobj" && level.bombs_planted > 1))
+		{
+			if (level.mef_gametype == "ft")
+			{
+				waitthread force_win
+			} else
+			{
+				waitthread global/libmef/util.scr::do_teamwin (waitthread global/libmef/util.scr::parse_clockside level.clockside)
+			}
+			end
+		} else if (local.suddendeath && !level.ft_suddendeath && (local.elapsedtime >= ((level.dmroundlimit - level.ft_settings["suddendeath"]) * 60)))
+		{
+			level.ft_suddendeath = 1
+			iprintlnbold_noloc ("Freeze Tag Phase Complete: Respawning Disabled.")
+			level.ft_sdhud.keys["suddendeath"] = 1
+			level.mef_updatehud = 1
+
+			waitthread collapse_frozen_bodies allies
+			waitthread collapse_frozen_bodies axis
+			level.ft_spawnfrozenbodies = 0
+		} else if (local.suddendeath && !level.ft_suddendeath && !local.announcesd && (local.elapsedtime >= (((level.dmroundlimit - level.ft_settings["suddendeath"]) * 60) - 20)))
+		{
+			local.announcesd = 1
+			iprintlnbold_noloc ("Warning: Freeze Tag phase ends in 20 seconds.")
+		} else if (level.mef_gametype == "ft" && !local.announcenuke && (local.elapsedtime >= ((level.dmroundlimit * 60) - 20)))
+		{
+			local.announcenuke = 1
+			iprintlnbold_noloc ("20 Seconds Remaining: Team with less players will be nuked.")
+			level.ft_bombticker = spawn script_model
+			level.ft_bombticker.origin = ( 0 0 0 )
+			level.ft_bombticker model "items/pulse_explosive.tik"
+			level.ft_bombticker notsolid
+			level.ft_bombticker neverdraw
+			level.ft_bombticker loopsound bombtick
+		} else if (level.mef_gametype == "ft" && !local.finalticking && level.ft_bombticker != NIL && (local.elapsedtime >= ((level.dmroundlimit * 60) - 10)))
+		{
+			local.finalticking = 1
+			level.ft_bombticker loopsound final_countdown
+		}
+	}
+end
+
+
+do_teamwin local.team:
+	if (level.ft_bombticker != NIL)
+	{
+		level.ft_bombticker stoploopsound
+	}
+
+	if (local.team == "both")
+	{
+		waitthread collapse_frozen_bodies allies
+		waitthread collapse_frozen_bodies axis
+	} else
+	{
+		waitthread collapse_frozen_bodies (waitthread global/libmef/util.scr::get_other_team local.team)
+	}
+	
+	waitthread global/libmef/util.scr::do_teamwin local.team
+end
+
+
+force_win:
+	level.ft_spawnfrozenbodies = 0
+
+	if (level.ft_numplayers["allies"] > level.ft_numplayers["axis"])
+	{
+		local.winner = "allies"
+	} else if (level.ft_numplayers["axis"] > level.ft_numplayers["allies"])
+	{
+		local.winner = "axis"
+	} else
+	{
+		local.winner = "both"
+	}
+
+	waitthread kill_team_players_alive (waitthread global/libmef/util.scr::get_other_team local.winner)
+	waitthread do_teamwin local.winner
+end
+
+
+create_frozen_body local.player local.origin:
+	local.ent = spawn script_model
+	local.ent model local.player.model
+	local.ent.origin = local.origin
+	local.ent.angles = local.player.angles
+	local.ent notsolid
+	local.ent.freezetime = level.time
+	local.ent.player = local.player
+	local.ent.team = local.player.dmteam
+	local.ent.targetname = ("frozenbody_" + local.ent.team)
+	local.ent.melters[0] = NIL
+	local.ent.meltbeams[0] = NIL
+	local.ent.addedplayer = 0
+	local.ent.frozen = 1
+	
+	local.ent.melttrigger = waitthread spawn_melt_trigger local.ent level.ft_settings["meltradius"]
+	local.ent jumpto (trace (local.ent.origin + ( 0 0 30 )) (local.ent.origin + ( 0 0 -10000 )))
+	local.ent.specorg = trace (local.ent.origin + ( 0 0 30 )) (local.ent.origin + ( 0 0 100 ))
+
+	local.ent.frozencolor = level.ft_frozencolor[local.player.dmteam]
+	local.ent.meltingcolor = level.ft_meltingcolor[local.player.dmteam]
+	local.ent.enemycolor = level.ft_enemycolor[local.player.dmteam]
+	local.ent.enemymeltcolor = level.ft_enemymeltcolor[local.player.dmteam]
+
+	local.ent.beams = waitthread spawn_beam_cylinder local.ent.origin 15 local.ent.frozencolor
+
+	level.ft_broadcastents[level.ft_broadcastents.size] = local.ent
+
+	local.ent.freezelocabbr = waitthread global/libmef/mapdesc.scr::get_player_position_abbr local.ent.origin
+	waitthread add_body_to_list local.ent
+
+	waitthread announce_body_position local.ent local.player.dmteam "frozen"
+
+	local.player.ft_auxdata.frozenbody = local.ent
+	
+	thread body_color_thread local.ent
+end local.ent
+
+
+spawn_melt_trigger local.body local.meltdist:
+	local.bbox = local.meltdist * 0.7
+	local.ent = spawn trigger_multiple
+	local.ent.origin = local.body.origin
+	local.ent setsize ( -local.bbox -local.bbox -local.bbox ) ( local.bbox local.bbox local.bbox )
+	local.ent.body = local.body
+	local.ent.meltdist = local.meltdist
+	local.ent setthread run_melt_trigger
+	local.ent glue local.body
+end local.ent
+
+
+run_melt_trigger:
+	if (self != NULL && self.body != NULL && parm.other != NULL)
+	{
+		if (parm.other.dmteam == self.body.team)
+		{
+			waitthread melt_body self.body parm.other
+		} else
+		{
+			thread enemy_nearby_thread self.body parm.other
+		}
+	}
+end
+
+
+enemy_nearby_thread local.body local.player:
+	if (local.body.melted || local.body.enemy_nearby)
+	{
+		end
+	}
+	
+	local.team = local.player.dmteam
+	local.body.enemy_nearby = 1
+	
+	while ((local.body != NULL) && (local.body.melttrigger != NULL) && (local.body.player != NULL) && (local.body.player.dmteam == local.body.team) && (local.body.player.ft_pstate == "PSTATE_GHOST") && \
+	       (local.player != NULL) && (local.player.dmteam == local.team) && (Isalive local.player) && (local.player.ft_pstate == "PSTATE_ALIVE") && \
+	       (local.player cansee local.body 360 50))
+	{
+		waitframe
+	}
+	
+	if (local.body != NULL)
+	{
+		local.body.enemy_nearby = 0
+	}
+end
+
+
+body_color_thread local.body:
+	local.melting = local.body.melting
+	local.enemy_nearby = local.body.enemy_nearby
+
+	while ((local.body != NULL) && (local.body.melttrigger != NULL) && (local.body.player != NULL) && (local.body.player.dmteam == local.body.team) && (local.body.player.ft_pstate == "PSTATE_GHOST"))
+	{
+		if (local.melting != local.body.melting || local.enemy_nearby != local.body.enemy_nearby)
+		{
+			local.melting = local.body.melting
+			local.enemy_nearby = local.body.enemy_nearby
+			
+			if (!local.melting && !local.enemy_nearby)
+			{
+				local.color = local.body.frozencolor
+			} else if (local.melting && !local.enemy_nearby)
+			{
+				local.color = local.body.meltingcolor
+			} else if (!local.melting && local.enemy_nearby)
+			{
+				local.color = local.body.enemycolor
+			} else
+			{
+				local.color = local.body.enemymeltcolor
+			}
+			
+			if (local.body.beams != NIL)
+			{
+				for (local.i = 0; local.i < local.body.beams.size; local.i++)
+				{
+					local.body.beams[local.i] color local.color
+				}
+
+			}
+		}
+		
+		waitframe
+	}
+end
+
+
+melt_body local.body local.player local.beam:
+	if (local.body.melted)
+	{
+		end
+	}
+
+	for (local.i = 0; local.i < local.body.melters.size; local.i++)
+	{
+		if (local.player == local.body.melters[local.i])
+		{
+			end
+		}
+	}
+	
+	local.body.melters[local.body.melters.size] = local.player
+	local.body.meltbeams[local.body.meltbeams.size] = local.beam
+	local.body.addedplayer = 1
+	
+	if (!local.body.frozen)
+	{
+		end
+	}
+	
+	local.body.frozen = 0
+
+	local.freq = 5
+	local.baserate = (1.0 / (level.ft_settings["melttime"] * 0.1))
+	
+	local.melters = local.body.melters
+	local.flevel = 0.0
+
+	while ((local.body != NULL) && (local.body.melttrigger != NULL) && (local.body.player != NULL) && (local.body.player.dmteam == local.body.team) && (local.body.player.ft_pstate == "PSTATE_GHOST"))
+	{
+		local.removedplayer = 0
+		local.contrib = 0.0
+
+		local.initsize = local.melters.size
+	
+		// check the existing melters
+		for (local.i = 0; local.i < local.initsize; local.i++)
+		{
+			local.player = local.melters[local.i]
+			local.beam = local.body.meltbeams[local.i]
+
+			if ((local.player != NULL) && (local.player.dmteam == local.body.team) && (Isalive local.player) && (local.player.ft_pstate == "PSTATE_ALIVE") && \
+			    ((local.beam == NIL && (local.player cansee local.body 360 local.body.melttrigger.meltdist)) || \
+                	     (local.beam != NIL && local.beam.laseron && (local.beam isTouching local.body))))
+			{
+				local.dist = (vector_length (local.player.origin - local.body.origin))
+				local.thisrate = (1.0 / ((level.ft_settings["melttime"] + (local.dist * level.ft_meltrate)) * 0.1))
+				local.contrib += (1.0 / (1.0 - (local.thisrate / (2.0 * local.baserate)))) - 1.0
+			} else
+			{
+				// player is no longer melting the body
+				if (local.player != NULL)
+				{
+					local.player stopwatch 0
+				}
+				local.melters[local.i] = NIL
+				local.removedplayer = 1
+			}
+		}
+
+		if (local.removedplayer)
+		{
+			local.newmelters = NIL
+			local.newmelters[0] = NIL
+			local.newmeltbeams = NIL
+			local.newmeltbeams[0] = NIL
+			
+			for (local.i = 0; local.i < local.initsize; local.i++)
+			{
+				if (local.body.melters[local.i] != NIL)
+				{
+					local.newmelters[local.newmelters.size] = local.body.melters[local.i]
+					local.newmeltbeams[local.newmeltbeams.size] = local.body.meltbeams[local.i]
+				}
+			}
+
+			local.body.melters = local.newmelters
+			local.body.meltbeams = local.newmeltbeams
+			local.melters = local.body.melters
+		}
+	
+		if (local.melters.size > 0)
+		{
+			local.rate = (1.0 - (1.0 / (local.contrib + 1.0))) * local.baserate * 2.0
+		} else
+		{
+			local.rate = -local.baserate
+		}
+
+		if (local.lasttick != NIL)
+		{
+			local.elapsed = level.time - local.lasttick
+		} else
+		{
+			local.elapsed = 0.0
+		}
+		
+		local.lasttick = level.time
+		local.flevel += local.rate * local.elapsed
+
+		if (local.melters.size > 0 && !local.body.melting)
+		{
+			// starting to melt
+			local.body.melting = 1
+		} else if (local.melters.size == 0 && local.body.melting)
+		{
+			// stopped melting
+			local.body.melting = 0
+		}
+
+		if (local.body.melting && local.flevel >= 1.0)
+		{
+			// melted
+			local.body.melted = 1
+
+			local.body playsound med_canteen
+			local.body.player.ft_meltplayer = NIL
+			local.body.player.ft_meltplayer[0] = NIL
+
+			for (local.i = 0; local.i < local.melters.size; local.i++)
+			{
+				local.player = local.melters[local.i]
+				local.player stopwatch 0
+				local.body.player.ft_meltplayer[local.body.player.ft_meltplayer.size] = local.player
+				if ((vector_length (local.player.origin - local.body.origin)) > 300)
+				{
+					local.player playsound med_canteen
+				}
+			}
+			end
+			
+		} else if (local.body.melting)
+		{
+			if (local.body.addedplayer || local.removedplayer)
+			{
+				if (local.rate > 0.001)
+				{
+					local.melttime = (((1.0 - local.flevel) / local.rate) + 0.5)
+				} else
+				{
+					local.melttime = 0.0
+				}
+				
+				// re-stopwatch
+				for (local.i = 0; local.i < local.melters.size; local.i++)
+				{
+					local.player = local.melters[local.i]
+					local.player stopwatch local.melttime
+				}
+			}
+		} else if (!local.body.melting && local.flevel <= 0.0)
+		{
+			// frozen again
+			local.body.frozen = 1
+			end
+		}
+
+		local.body.addedplayer = 0
+		wait (1.0 / local.freq)
+	}
+	
+	for (local.i = 0; local.i < local.melters.size; local.i++)
+	{
+		local.player = local.melters[local.i]
+		if (local.player != NULL)
+		{
+			local.player stopwatch 0
+		}
+	}
+end
+
+
+add_body_to_list local.body:
+	local.body.prevbody = level.ft_frozenbodies[local.body.team]
+	local.body.nextbody = NIL
+	
+	if (local.body.prevbody != NIL)
+	{
+		local.body.prevbody.nextbody = local.body
+	}
+	
+	level.ft_frozenbodies[local.body.team] = local.body
+	level.ft_bodydesc[local.body.team] = waitthread get_body_desc local.body.team
+end
+
+
+remove_body_from_list local.body:
+	if (local.body.prevbody != NIL)
+	{
+		local.body.prevbody.nextbody = local.body.nextbody
+	}
+		
+	if (local.body.nextbody != NIL)
+	{
+		local.body.nextbody.prevbody = local.body.prevbody
+	}
+		
+	if (level.ft_frozenbodies[local.body.team] == local.body)
+	{
+		level.ft_frozenbodies[local.body.team] = local.body.prevbody
+	}
+	level.ft_bodydesc[local.body.team] = waitthread get_body_desc local.body.team
+end
+
+
+get_first_frozen_body local.team:
+	for (local.elem = level.ft_frozenbodies[local.team]; local.elem != NIL; local.elem = local.elem.prevbody)
+	{
+		local.result = local.elem
+	}
+end local.result
+
+
+remove_frozen_body local.auxdata:
+	if (local.auxdata.frozenbody != NIL)
+	{
+		waitthread add_frozenloc_to_list local.auxdata.frozenbody.origin local.auxdata.frozenbody.team
+		local.auxdata.frozenbody.melttrigger remove
+		waitthread remove_beam_cylinder local.auxdata.frozenbody.beams
+		local.auxdata.frozenbody.beams = NIL
+		waitthread remove_body_from_list local.auxdata.frozenbody
+		local.auxdata.frozenbody remove
+		local.auxdata.frozenbody = NIL
+	}
+end
+
+
+create_frozen_bodies:
+	for (local.i = 0; local.i < level.ft_players.size; local.i++)
+	{
+		local.player = level.ft_players[local.i].player
+
+		if (local.player != NULL && local.player.ft_spawnfrozenbody != NIL)
+		{
+			waitthread create_frozen_body local.player local.player.ft_spawnfrozenbody
+			local.player.ft_spawnfrozenbody = NIL
+		}
+	}
+end
+
+
+collapse_frozen_bodies local.team:
+	local.bodies[0] = NIL
+
+	for (local.elem = (waitthread get_first_frozen_body local.team); local.elem != NIL; local.elem = local.elem.nextbody)
+	{
+		local.bodies[local.bodies.size] = local.elem
+		local.elem.melttrigger remove
+		local.elem.player.ft_auxdata.frozenbody.targetname = NIL
+		local.elem.player.ft_auxdata.frozenbody = NIL
+	}
+
+	level.ft_frozenbodies[local.team] = NIL
+	level.ft_bodydesc[local.team] = waitthread get_body_desc local.team
+	thread collapse_and_remove_bodies local.bodies
+end
+
+
+collapse_and_remove_bodies local.bodies:
+	for (local.i = 0; local.i < local.bodies.size; local.i++)
+	{
+		thread collapse_and_remove_body local.bodies[local.i]
+		wait 0.4
+	}
+end
+
+
+collapse_and_remove_body local.body:
+	waitthread remove_beam_cylinder local.body.beams
+	local.body.beams = NIL
+	local.body.dontbroadcast = 1
+	local.body svflags "-broadcast"
+	waitframe
+	local.body anim level.ft_deathanims[randomint(level.ft_deathanims.size)]
+	wait 5
+	local.body remove
+end
+
+
+player_enter_spectator_state local.player local.msg:
+	// credits to jv_map for this trick
+	local.trigger = spawn trigger_multiple
+	local.trigger setsize ( -16 -16 -16) (16 16 16)
+	local.trigger glue local.player
+	local.trigger.watchplayer = local.player
+	local.trigger.team = local.player.dmteam
+	local.trigger.msg = local.msg
+	local.trigger.signal = local createListener
+
+	local.player.ft_auxdata.specmonitor = local.trigger
+	local.trigger setthread spec_triggered
+end
+
+
+spec_triggered:
+	local.player = parm.other
+	if (local.player != NULL && local.player == self.watchplayer && local.player.dmteam == self.team)
+	{
+		local.player.ft_spawned = 1
+		local.player takeall
+		local.player hide
+		local.player notsolid
+		local.player noclip
+		local.player iprint (self.msg + " " + level.ft_observe_msgstring)
+
+		if (!self.observing)
+		{
+			thread start_observing self local.player
+		}
+	}
+end
+
+
+player_leave_spectator_state local.auxdata:
+	if (local.auxdata.specmonitor != NIL)
+	{
+		local.auxdata.specmonitor.signal delete
+		local.auxdata.specmonitor remove
+		local.auxdata.specmonitor = NIL
+	}
+
+	if (local.auxdata.player != NULL)
+	{
+		local.auxdata.player physics_on
+	}
+end
+
+
+start_observing local.trigger local.player:
+	local.team = local.player.dmteam
+	local.signal = local.trigger.signal
+	local.trigger.observing = 1
+	local.target = NULL
+	local.useheld = 1
+	local.fireheld = 1
+	
+	local.nextping = level.time + level.ft_inactiveping
+
+	// wait a frame so the player is hidden before they start observing another player
+	waitframe
+
+	while (local.signal != NULL && local.player != NULL && local.player.dmteam == local.team)
+	{
+		if (local.oldphysics != local.physics)
+		{
+			if (local.physics)
+			{
+				local.player physics_on
+			} else
+			{
+				local.player physics_off
+			}
+			
+			local.oldphysics = local.physics
+		}
+
+		if (local.player.useheld)
+		{
+			if (!local.useheld)
+			{
+				if (level.ft_observe_switchtargetkey == "use")
+				{
+					local.switchtarget = 1
+				} else
+				{
+					if (level.ft_settings["observe_freefloat"])
+					{
+						local.freefloat = 1
+					}
+				}
+				local.useheld = 1
+			}
+		} else
+		{
+			local.useheld = 0
+		}
+		
+		if (local.player.fireheld)
+		{
+			if (!local.fireheld)
+			{
+				if (level.ft_observe_switchtargetkey == "fire")
+				{
+					local.switchtarget = 1
+				} else
+				{
+					if (level.ft_settings["observe_freefloat"])
+					{
+						local.freefloat = 1
+					}
+				}
+				local.fireheld = 1
+			}
+		} else
+		{
+			local.fireheld = 0
+		}
+
+		if (!(local.target == NIL || (local.target != NULL && (local.target.dmteam == local.player.dmteam || level.ft_numplayers[local.player.dmteam] == 0) && ((local.target.ft_pstate == "PSTATE_ALIVE" && local.target.ft_spawned) || (level.ft_settings["observe_bodies"] && local.target.ft_auxdata.frozenbody != NIL)))))
+		{
+			local.switchtarget = 1
+		}
+		
+		if (local.freefloat)
+		{
+			if (local.target != NIL)
+			{
+				local.target = NIL
+			} else
+			{
+				local.switchtarget = 1
+			}
+
+			local.freefloat = 0
+		}
+
+		if (local.switchtarget)
+		{
+			local.alive = NIL
+			local.ghost = NIL
+			local.alive[0] = NIL
+			local.ghost[0] = NIL
+
+			for (local.i = 0; local.i < level.ft_players.size; local.i++)
+			{
+				local.postarget = level.ft_players[local.i].player
+		
+				if (local.postarget == NIL || (local.postarget != NULL && (local.postarget.dmteam == local.player.dmteam || level.ft_numplayers[local.player.dmteam] == 0) && ((local.postarget.ft_pstate == "PSTATE_ALIVE" && local.postarget.ft_spawned) || (level.ft_settings["observe_bodies"] && local.postarget.ft_auxdata.frozenbody != NIL))))
+				{
+					if (local.postarget.ft_pstate == "PSTATE_ALIVE")
+					{
+						local.alive[local.alive.size] = local.postarget
+					} else
+					{
+						local.ghost[local.ghost.size] = local.postarget
+					}
+				}
+			}
+	
+			for (local.i = 0; local.i < local.ghost.size; local.i++)
+			{
+				local.alive[local.alive.size] = local.ghost[local.i]
+			}
+	
+			for (local.i = 0; local.i < local.alive.size; local.i++)
+			{
+				if (local.target == local.alive[local.i])
+				{
+					break
+				}
+			}
+	
+			local.i++
+			if (local.i >= local.alive.size)
+			{
+				local.i = 0
+			}
+	
+			if (local.alive.size == 0)
+			{
+				if (level.ft_numplayers["axis"] == 0 && level.ft_numplayers["allies"] == 0)
+				{
+					local.target = NIL
+				} else
+				{
+					local.target = NULL
+				}
+			} else
+			{
+				local.target = local.alive[local.i]
+			}
+
+			local.switchtarget = 0
+		}
+		
+		if (local.target != NIL && local.target != NULL)
+		{
+			if (local.target.ft_pstate == "PSTATE_ALIVE")
+			{
+				local.physics = 0
+				
+				if ((local.target getposition) == "crouching")
+				{
+					local.specorg = local.target.origin + ( 0 0 50 )
+					local.hoffset = 15
+				} else
+				{
+					local.specorg = local.target.origin + ( 0 0 100 )
+					local.hoffset = 0
+				}
+				
+				local.specang = local.target.viewangles
+			} else
+			{
+				local.physics = 1
+				local.hoffset = -5
+				local.specorg = local.target.ft_auxdata.frozenbody.specorg
+				local.specang = local.player.viewangles
+			}
+
+			local.player.origin = (trace local.specorg (local.specorg + ( 0 0 local.hoffset ) + ((angles_toforward local.specang) * -50)) 1) - ( 0 0 82.125 )
+			local.player.viewangles = local.specang
+		} else if (local.target == NIL)
+		{
+			local.physics = 1
+		}
+
+		if (level.ft_inactiveping > 0 && level.time > local.nextping)
+		{
+			local.player stufftext "+moveup; wait 100; -moveup"
+			local.nextping = level.time + level.ft_inactiveping
+		}
+		
+		waitframe
+	}
+
+	if (local.trigger != NULL)
+	{
+		local.trigger.observing = NIL
+	}
+end
+
+
+freeze_player local.player local.origin:
+	local.player.ft_pstate = "PSTATE_GHOST"
+	waitthread player_enter_spectator_state local.player "**GHOST MODE**"
+	local.player.ft_spawnfrozenbody = local.origin
+//	thread auto_melt 10 local.player
+end
+
+
+melt_player local.player:
+	local.player.ft_pstate = "PSTATE_MELTING"
+	waitthread announce_body_position local.player.ft_auxdata.frozenbody local.player.dmteam "melted"
+	waitthread remove_frozen_body local.player.ft_auxdata
+	waitthread player_leave_spectator_state local.player.ft_auxdata
+	thread respawn_player_thread local.player
+end
+
+
+respawn_player_thread local.player:
+	// dont respawn immediately if the player was just killed
+	if (!IsAlive(local.player))
+	{
+		local.endtime = level.time + 3.0
+		local.team = local.player.dmteam
+
+		while ((local.player != NULL) && (local.player.dmteam == local.team) && (local.player.ft_pstate == "PSTATE_MELTING"))
+		{
+			if (IsAlive(local.player))
+			{
+				// the player respawned themselves, no need to force
+				local.player.ft_pstate = "PSTATE_ALIVE"
+				end
+			}
+			
+			if (level.time >= local.endtime)
+			{
+				// time is up and the player is still dead, force them to respawn	
+				local.player.ft_pstate = "PSTATE_ALIVE"
+				local.player respawn
+				end
+			}
+			
+			waitframe
+		}
+
+		// player left the game, left the team, or state changed: do nothing
+	} else
+	{
+		local.player.ft_pstate = "PSTATE_ALIVE"
+		local.player respawn
+	}
+end
+
+
+auto_melt local.delay local.player:
+	wait local.delay
+	local.player.ft_meltplayer = NIL
+	local.player.ft_meltplayer[0] = $player[1]
+end
+
+
+spectate_mode_player local.player:
+	local.player.ft_pstate = "PSTATE_SPECTATOR"
+	waitthread remove_frozen_body local.player.ft_auxdata
+	waitthread player_leave_spectator_state local.player.ft_auxdata
+	
+	if (local.player.dmteam != "spectator")
+	{
+		waitthread player_enter_spectator_state local.player "**SPECTATOR MODE**"
+	}
+end
+
+
+player_check_loop:
+	while (1)
+	{
+		wait .2
+
+		waitthread check_players_joined_game
+		waitthread check_player_state
+
+		if (level.ft_checkwin && !level.mef_gameover)
+		{
+			if (level.mef_gametype == "ftobj")
+			{
+				local.targets_notset = level.targets_to_destroy - level.targets_destroyed - level.bombs_planted + 1
+			}
+			
+			if (level.ft_numplayers["allies"] == 0 && level.ft_numplayers["axis"] == 0)
+			{
+				if (level.mef_gametype == "ftobj" && local.targets_notset <= 0)
+				{
+					local.winner = level.planting_team
+				} else
+				{
+					local.winner = "draw"
+				}
+			} else if (level.ft_numplayers["axis"] == 0)
+			{
+				if (level.mef_gametype == "ftobj" && level.planting_team == "axis" && local.targets_notset <= 0)
+				{
+					local.announcebomb = 1
+				} else
+				{
+					local.winner = "allies"
+				}
+			} else if (level.ft_numplayers["allies"] == 0)
+			{
+				if (level.mef_gametype == "ftobj" && level.planting_team == "allies" && local.targets_notset <= 0)
+				{
+					local.announcebomb = 1
+				} else
+				{
+					local.winner = "axis"
+				}
+			}
+		}
+		
+		if (local.announcebomb && !local.announcedbomb)
+		{
+			iprintlnbold_noloc "A bomb is still set!"
+			local.announcedbomb = 1
+		}
+		
+		if (local.winner)
+		{
+			waitthread do_teamwin local.winner
+			end
+		}
+		
+		if (level.ft_spawnfrozenbodies)
+		{
+			waitthread create_frozen_bodies
+		}
+	}
+end
+
+
+compress_array local.array local.asize:
+	local.result[0] = NIL
+	for (local.i = 0; local.i < local.asize; local.i++)
+	{
+		if (local.array[local.i] != NIL)
+		{
+			local.result[local.result.size] = local.array[local.i]
+		}
+	}
+end local.result
+
+
+init_player_auxdata local.player:
+	local.player.ft_playerid = level.ft_nextplayerid
+	level.ft_nextplayerid++
+
+	local.ent = spawn Listener
+	local.ent.player = local.player
+
+	level.ft_players[level.ft_players.size] = local.ent
+
+	local.player.ft_auxdata = local.ent
+end
+
+
+spectator_join_thread local.delay:
+	level.ft_allowjoin = 1
+
+	local.endtime = level.time + local.delay
+	while (level.time <= local.endtime)
+	{
+		wait 1
+	}
+
+	waitthread disable_spectator_join
+end
+
+
+disable_spectator_join:
+	level.ft_allowjoin = 0
+
+	for (local.i = 0; local.i < level.ft_players.size; local.i++)
+	{
+		local.player = level.ft_players[local.i].player
+
+		if (local.player != NULL && local.player.ft_pstate == "PSTATE_SPECTATOR_ALLOWJOIN")
+		{
+			waitthread spectate_mode_player local.player
+		}
+	}
+end
+
+
+check_players_joined_game:
+	for (local.i = 1; local.i < ($player.size + 1); local.i++)
+	{
+		local.player = $player[local.i]
+		if (local.player != NIL && local.player != NULL && local.player.ft_auxdata == NIL)
+		{
+			waitthread init_player_auxdata local.player
+		}
+	}
+end
+
+
+check_player_state:
+	local.initsize = level.ft_players.size
+
+	local.totplayers["allies"] = 0
+	local.totplayers["axis"] = 0
+	local.numplayers["allies"] = 0
+	local.numplayers["axis"] = 0
+	local.hudstatus["allies"] = 0
+	local.hudstatus["axis"] = 0
+	
+	for (local.i = 0; local.i < local.initsize; local.i++)
+	{
+		local.auxdata = level.ft_players[local.i]
+		local.player = local.auxdata.player
+
+		// check if the player left the game
+		if (local.player == NULL)
+		{
+			waitthread remove_frozen_body local.auxdata
+			waitthread player_leave_spectator_state local.auxdata
+
+			local.auxdata remove
+			level.ft_players[local.i] = NIL
+			continue
+		}
+
+		// check if the player left their team or joined the game
+		if (local.player.dmteam != local.player.ft_team)
+		{
+			if (((local.player.ft_pstate == "PSTATE_MELTING") || (local.player.ft_pstate == "PSTATE_ALIVE" && IsAlive(local.player)) || local.player.ft_team == NIL) && level.ft_allowjoin)
+			{
+				local.player.ft_pstate = "PSTATE_SPECTATOR_ALLOWJOIN"
+			} else if (local.player.ft_pstate != "PSTATE_SPECTATOR_ALLOWJOIN")
+			{
+				waitthread spectate_mode_player local.player
+			}
+			
+			local.player.ft_team = local.player.dmteam
+		}
+
+		// check if the player joined a team
+		if (((level.ft_settings["allowjoin"] && local.player.ft_pstate == "PSTATE_SPECTATOR") || local.player.ft_pstate == "PSTATE_SPECTATOR_ALLOWJOIN") && (local.player.dmteam == "allies" || local.player.dmteam == "axis"))
+		{
+			if (local.player.ft_pstate == "PSTATE_SPECTATOR")
+			{
+				waitthread player_leave_spectator_state local.player.ft_auxdata
+				local.player.ft_pstate = "PSTATE_GHOST"
+				waitthread player_enter_spectator_state local.player "**GHOST MODE**"
+			} else
+			{
+				local.player.ft_pstate = "PSTATE_ALIVE"
+			}
+			
+			waitthread spawn_player_watcher local.player
+			if (level.ft_settings["meltgun"])
+			{
+				thread laser_thread local.player
+			}
+		}
+
+		// check if the player is dead
+		if (local.player.ft_pstate == "PSTATE_ALIVE" && !IsAlive(local.player))
+		{
+			waitthread freeze_player local.player local.player.origin
+			local.hudstatus[local.player.dmteam] -= 1
+		}
+
+		// check if the player was melted
+		if (local.player.ft_pstate == "PSTATE_GHOST" && local.player.ft_meltplayer != NIL)
+		{
+			waitthread award_melter_points local.player.ft_meltplayer
+			waitthread melt_player local.player
+			local.hudstatus[local.player.dmteam] += 1
+		}
+		
+		if ((local.player.dmteam == "allies" || local.player.dmteam == "axis") && local.player.ft_pstate != "PSTATE_SPECTATOR")
+		{
+			local.totplayers[local.player.dmteam]++
+		}
+
+		if (local.player.ft_pstate == "PSTATE_ALIVE" || local.player.ft_pstate == "PSTATE_MELTING")
+		{
+			local.numplayers[local.player.dmteam]++
+		}
+		
+		local.player.ft_meltplayer = NIL
+	}
+
+	// remove all players that were marked for deletion
+	level.ft_players = waitthread compress_array level.ft_players local.initsize
+	
+	level.ft_numplayers["allies"] = local.numplayers["allies"]
+	level.ft_numplayers["axis"] = local.numplayers["axis"]
+	level.ft_totplayers["allies"] = local.totplayers["allies"]
+	level.ft_totplayers["axis"] = local.totplayers["axis"]
+	level.ft_hudstatus["allies"] = local.hudstatus["allies"]
+	level.ft_hudstatus["axis"] = local.hudstatus["axis"]
+end
+
+
+kill_team_players_alive local.team:
+	thread global/libmef/bomb.scr::jitter_large 0
+
+	for (local.i = 0; local.i < level.ft_players.size; local.i++)
+	{
+		local.player = level.ft_players[local.i].player
+
+		if (local.player != NULL && local.player.ft_pstate == "PSTATE_ALIVE" && local.player.ft_spawned && (local.player.dmteam == local.team || local.team == "both"))
+		{
+			local.player playsound grenade_explode
+			radiusdamage local.player.origin level.ft_playerexplosion_damage level.ft_playerexplosion_radius
+		}
+	}
+end
+
+
+award_melter_points local.melters:
+	if (level.mef_baseversion == "sh" || level.mef_baseversion == "bt")
+	{
+		for (local.i = 0; local.i < local.melters.size; local.i++)
+		{
+			local.melter = local.melters[local.i]
+			if (local.melter != NULL)
+			{
+				if (local.melter.ft_meltscore == NIL)
+				{
+					local.melter.ft_meltscore = 0.0
+					local.melter.ft_awardedpoints = 0
+				}
+
+				local.melter.ft_meltscore += (1.0 / local.melters.size)
+				local.totalpoints = int local.melter.ft_meltscore
+
+				// round up to the nearest integer
+				if ((local.melter.ft_meltscore - local.totalpoints) > 0.0)
+				{
+					local.totalpoints += 1
+				}
+
+				local.award = local.totalpoints - local.melter.ft_awardedpoints
+				if (local.award > 0)
+				{
+					local.melter commanddelay 0 addKills local.award
+					local.melter.ft_awardedpoints += local.award
+				}
+			}
+		}
+	}
+end
+
+
+setup_sd_display:
+	huddraw_align self.idx right top
+	huddraw_font  self.idx facfont-20
+	huddraw_rect  self.idx -103 70 100 100
+	huddraw_color self.idx 1.0 1.0 1.0
+	huddraw_alpha self.idx 1.0
+end
+
+
+update_sd_display:
+	if (level.mef_updatehudall || self.keys["suddendeath"])
+	{
+		if (level.ft_suddendeath == 1)
+		{
+			huddraw_string self.idx "[Sudden Death]"
+		} else
+		{
+			huddraw_string self.idx ""
+		}
+	}
+end
+
+
+setup_body_display:
+	local.coordx = 10
+	local.coordy = -140
+	local.ystep = 25
+
+	huddraw_align  self.idx left bottom
+	huddraw_font   self.idx facfont-20
+	huddraw_rect   self.idx (local.coordx + 30) local.coordy 100 100
+	huddraw_alpha  self.idx 1.0
+
+	huddraw_align  (self.idx + 1) left bottom
+	huddraw_font   (self.idx + 1) facfont-20
+	huddraw_rect   (self.idx + 1) (local.coordx + 30) (local.coordy + local.ystep) 100 100
+	huddraw_alpha  (self.idx + 1) 1.0
+
+	huddraw_shader (self.idx + 2) ("textures/hud/allies")
+	huddraw_align (self.idx + 2) left bottom
+	huddraw_color (self.idx + 2) 1.0 0.0 0.0
+	huddraw_alpha (self.idx + 2) 1.0
+
+	huddraw_shader (self.idx + 3) ("textures/hud/axis")
+	huddraw_align (self.idx + 3) left bottom
+	huddraw_color (self.idx + 3) 1.0 1.0 1.0
+	huddraw_alpha (self.idx + 3) 1.0
+end
+
+
+update_body_display:
+	local.iconcenx = 22
+	local.iconceny = -133
+	local.iconoffa = level.ft_hudiconsize["allies"] / 2
+	local.iconoffx = level.ft_hudiconsize["axis"] / 2
+	local.ystep = 25
+
+	if (level.mef_updatehudall || self.keys["alliescount"])
+	{
+		huddraw_string self.idx (level.ft_numplayers["allies"] + " / " + level.ft_totplayers["allies"] + " " + level.ft_bodydesc["allies"])
+	}
+	
+	if (level.mef_updatehudall || self.keys["axiscount"])
+	{
+		huddraw_string (self.idx + 1) (level.ft_numplayers["axis"] + " / " + level.ft_totplayers["axis"] + " " + level.ft_bodydesc["axis"])
+	}
+	
+	if (level.mef_updatehudall || self.keys["alliescolor"])
+	{
+		huddraw_color self.idx level.ft_hudtextcolor["allies"][0] level.ft_hudtextcolor["allies"][1] level.ft_hudtextcolor["allies"][2]
+	}
+	
+	if (level.mef_updatehudall || self.keys["axiscolor"])
+	{
+		huddraw_color (self.idx + 1) level.ft_hudtextcolor["axis"][0] level.ft_hudtextcolor["axis"][1] level.ft_hudtextcolor["axis"][2]
+	}
+
+	if (level.mef_updatehudall || self.keys["alliessize"])
+	{
+		huddraw_rect (self.idx + 2) (local.iconcenx - local.iconoffa) (local.iconceny - local.iconoffa) level.ft_hudiconsize["allies"] level.ft_hudiconsize["allies"]
+	}
+	
+	if (level.mef_updatehudall || self.keys["axissize"])
+	{
+		huddraw_rect (self.idx + 3) (local.iconcenx - local.iconoffx) (local.iconceny + local.ystep - local.iconoffx) level.ft_hudiconsize["axis"] level.ft_hudiconsize["axis"]
+	}
+end
+
+
+check_hudstatus_change local.team:
+	switch (local.team)
+	{
+		case "allies":
+			local.textcolor[ -4] = ( 0.4 0.4 1.0 )
+			local.textcolor[0]   = ( 1.0 1.0 1.0 )
+			local.textcolor[4]   = ( 0.4 1.0 1.0 )
+			break
+			
+		case "axis":
+			local.textcolor[ -4] = ( 1.0 0.4 0.4 )
+			local.textcolor[0]   = ( 1.0 1.0 1.0 )
+			local.textcolor[4]   = ( 1.0 1.0 0.4 )
+			break
+	}
+
+	local.iconsize[ -4] = 16
+	local.iconsize[ -3] = 19
+	local.iconsize[ -2] = 22
+	local.iconsize[ -1] = 25
+	local.iconsize[0]   = 25
+	local.iconsize[1]   = 25
+	local.iconsize[2]   = 28
+	local.iconsize[3]   = 31
+	local.iconsize[4]   = 34
+
+	local.hudstatus = 0
+	
+	while (1)
+	{
+		if (level.ft_hudstatus[local.team] != 0)
+		{
+			if (level.ft_hudstatus[local.team] > 0)
+			{
+				local.hudstatus = 5
+			} else
+			{
+				local.hudstatus = -5
+			}
+			
+			local.nexttick = -1
+			level.ft_hudstatus[local.team] = 0
+		}
+
+		if (local.hudstatus != 0 && level.time > local.nexttick)
+		{
+			if (local.hudstatus > 0)
+			{
+				local.hudstatus -= 1
+			} else
+			{
+				local.hudstatus += 1
+			}
+			
+			level.ft_hudiconsize[local.team] = local.iconsize[local.hudstatus]
+			level.ft_bodyhud.keys[local.team + "size"] = 1
+
+			if (local.hudstatus == -4 || local.hudstatus == 0 || local.hudstatus == 4)
+			{
+				level.ft_hudtextcolor[local.team] = local.textcolor[local.hudstatus]
+				level.ft_bodyhud.keys[local.team + "color"] = 1
+			}
+			
+			level.mef_updatehud = 1
+			
+			if (local.hudstatus == 1 || local.hudstatus == -1)
+			{
+				local.nexttick = level.time + 2.0
+			} else
+			{
+				local.nexttick = level.time + 0.1
+			}
+		}
+				
+		waitframe
+	}
+end
+
+
+check_num_players_changed local.team:
+	while (1)
+	{
+		if (local.numplayers != level.ft_numplayers[local.team] || \
+		    local.totplayers != level.ft_totplayers[local.team] || \
+		    local.bodydesc != level.ft_bodydesc[local.team])
+		{
+			local.numplayers = level.ft_numplayers[local.team]
+			local.totplayers = level.ft_totplayers[local.team]
+			local.bodydesc = level.ft_bodydesc[local.team]
+			level.ft_bodyhud.keys[local.team + "count"] = 1
+			level.mef_updatehud = 1
+		}
+		waitframe
+	}
+end
+
+
+get_body_desc local.team:
+	local.result = ""
+
+	if (level.map_enabled && (level.ft_numplayers[local.team] > 0) && level.ft_settings["announce_bodycodes"])
+	{
+		for (local.elem = (waitthread get_first_frozen_body local.team); local.elem != NIL; local.elem = local.elem.nextbody)
+		{
+			if (local.result != "")
+			{
+				local.result = local.result + "-"  + local.elem.freezelocabbr
+			} else
+			{
+				local.result = local.elem.freezelocabbr
+			}
+		}
+	
+		if (local.result != "")
+		{
+			local.result = "[" + local.result + "]"
+		}
+	}
+end local.result
+
+
+spawn_beam_cylinder local.origin local.radius local.color:
+	local.beams[0] = NIL
+	waitthread spawn_doublebeam local.beams (local.origin + ( local.radius 0 0 )) local.color
+	waitthread spawn_doublebeam local.beams (local.origin + ( -(local.radius * 0.5) (local.radius * 0.866) 0 )) local.color
+	waitthread spawn_doublebeam local.beams (local.origin + ( -(local.radius * 0.5) -(local.radius * 0.866) 0 )) local.color
+end local.beams
+
+
+remove_beam_cylinder local.beams:
+	for (local.i = 0; local.i < local.beams.size; local.i++)
+	{
+		local.beams[local.i] remove
+	}
+end
+
+
+spawn_doublebeam local.beams local.origin local.color:
+	local.pts = waitthread find_beam_endpoints (local.origin + ( 0 0 40 )) 60 -50
+	local.beams[local.beams.size] = waitthread spawn_beam local.pts[0] local.pts[1] local.color
+	if (local.pts[2] != NIL)
+	{
+		local.beams[local.beams.size] = waitthread spawn_beam local.pts[2] local.pts[3] local.color
+	}
+end
+
+
+spawn_beam local.origin local.endpoint local.color:
+	local.ent = spawn func_beam
+	local.ent.origin = local.origin
+	local.ent endpoint local.endpoint
+	local.ent minoffset 0.0
+	local.ent maxoffset 0.0
+	local.ent scale 4.0
+	local.ent color local.color
+	local.ent alpha 0.7
+	local.ent numsegments 1
+	local.ent life 0
+	local.ent damage $player[1] 0
+	local.ent activate
+	level.ft_broadcastents[level.ft_broadcastents.size] = local.ent
+end local.ent
+
+
+find_beam_endpoints local.center local.start local.end:
+	local.top = (local.center + ( 0 0 local.start))
+	local.bottom = (local.center + ( 0 0 local.end))
+	local.result[0] = (trace local.center local.top 0)
+	local.result[1] = (trace local.center local.bottom 0)
+
+	local.offset = local.top[2] - local.result[0][2]
+	if (local.offset > 5)
+	{
+		local.secondbeam = (trace local.top local.center 0)
+		if (local.secondbeam != local.center)
+		{
+			// do a second beam
+			local.result[2] = local.top
+			local.result[3] = local.secondbeam
+		}
+	}
+end local.result
+
+
+announce_body_position local.body local.team local.action:
+	local.teamprefix["allies"] = "Allied"
+	local.teamprefix["axis"] = "Axis"
+
+	local.str = local.teamprefix[local.team] + " player " + local.action + "."
+	
+	if (level.ft_settings[("announce_" + local.action)])
+	{
+		local.str += (waitthread get_body_full_desc local.body)
+	}
+	
+	if (local.action == "melted")
+	{
+		iprintln_noloc local.str
+	} else
+	{
+		iprintlnbold_noloc local.str
+	}
+end
+
+
+get_body_full_desc local.body:
+	local.desc = waitthread global/libmef/mapdesc.scr::get_player_position local.body.origin
+
+	if (local.desc != "")
+	{
+		local.desc = " [" + local.desc + "]"
+	}
+end local.desc
+
+
+laser_thread local.player:
+	local.tag = "eyes bone"
+	local.beamalpha = 0.7
+	local.usedelay = 0.25
+	local.team = local.player.dmteam
+	local.bodytarget = "frozenbody_" + local.player.dmteam
+	local.lightrad = 50
+
+	local.lasercolor = level.ft_frozencolor[local.player.dmteam]
+	local.laserhitcolor = level.ft_meltingcolor[local.player.dmteam]
+	local.lasersound = level.ft_lasersound[local.player.dmteam]
+	local.meltingsound = level.ft_meltingsound
+	local.soundvol = level.ft_laservolume
+
+	local.ent = spawn func_beam
+	local.ent minoffset 0.0
+	local.ent maxoffset 0.0
+	local.ent numsegments 1
+	local.ent life 0
+	local.ent color local.lasercolor
+	local.ent alpha local.beamalpha
+	
+	local.ent alwaysdraw
+
+	local.ent.targetname = "meltbeam_" + local.player.dmteam
+	local.ent setsize ( -local.lightrad -local.lightrad -local.lightrad ) ( local.lightrad local.lightrad local.lightrad )
+	local.ent light local.lasercolor[0] local.lasercolor[1] local.lasercolor[2] (local.lightrad * 2)
+	local.ent lightOff
+	local.ent.player = local.player
+	local.ent.team = local.team
+	
+	local.hitbody = 0
+	local.canuse = 1
+
+	while (local.player != NULL && local.player.dmteam == local.team)
+	{
+		if (!local.canuse && !local.player.useheld)
+		{
+			local.canuse = 1
+		}
+		
+		if (local.player.useheld && local.canuse && !local.player.fireheld && local.player.ft_pstate == "PSTATE_ALIVE" && local.player.ft_spawned && !local.player.mef_pressingbutton)
+		{
+			if (local.useheldtime == NIL)
+			{
+				local.useheldtime = level.time + local.usedelay
+			} else if (level.time > local.useheldtime)
+			{
+				local.laserorigin = (local.player gettagposition local.tag)
+				local.laservec = (angles_toforward local.player.viewangles)
+				
+				if ($(local.bodytarget) != NULL)
+				{
+					$(local.bodytarget) solid
+				}
+				
+				local.player notsolid
+
+				local.laserhit = (trace local.laserorigin (local.laserorigin + ( local.laservec * 10000 )))
+
+				local.player solid
+
+				if ($(local.bodytarget) != NULL)
+				{
+					$(local.bodytarget) notsolid
+				}
+
+				local.ent.origin = local.laserhit
+				local.ent endpoint local.laserorigin
+
+				if (!local.ent.laseron)
+				{
+					local.player loopsound local.lasersound local.soundvol
+					local.ent damage local.player 0
+					local.ent activate
+					local.ent lightOn
+					local.ent.laseron = 1
+				}
+			}
+		} else
+		{
+			if (local.ent.laseron)
+			{
+				if (local.player.useheld)
+				{
+					local.canuse = 0
+				}
+				local.player stoploopsound
+				local.ent lightOff
+				local.ent deactivate
+				local.ent.laseron = 0
+			}
+			
+			if (local.player.mef_pressingbutton)
+			{
+				local.canuse = 0
+			}
+			
+			local.useheldtime = NIL
+		}
+
+		if (local.ent.hitbody && !local.hitbody)
+		{
+			local.ent color local.laserhitcolor
+			local.ent light local.laserhitcolor[0] local.laserhitcolor[1] local.laserhitcolor[2] (local.lightrad * 2)
+			local.hitbody = 1
+			
+			if (local.ent.laseron)
+			{
+				local.player loopsound local.meltingsound local.soundvol
+			}
+		} else if (!local.ent.hitbody && local.hitbody)
+		{
+			local.ent color local.lasercolor
+			local.ent light local.lasercolor[0] local.lasercolor[1] local.lasercolor[2] (local.lightrad * 2)
+			local.hitbody = 0
+
+			if (local.ent.laseron)
+			{
+				local.player loopsound local.lasersound local.soundvol
+			} else
+			{
+				local.ent lightOff
+			}
+		}
+
+		waitframe
+	}
+	
+	if (local.player != NULL)
+	{
+		local.player stoploopsound
+	}
+	
+	local.ent lightOff
+	local.ent remove
+end
+
+
+collision_check local.beamtargetname local.bodytargetname:
+	local.ents = $(local.bodytargetname)
+	local.beams = $(local.beamtargetname)
+	
+	for (local.i = 1; local.i < (local.beams.size + 1); local.i++)
+	{
+		local.beam = local.beams[local.i]
+		local.beam.hitbody = 0
+		if (local.beam.laseron && (local.beam.player != NULL) && (local.beam.player.dmteam == local.beam.team) && (local.beam.player.ft_pstate == "PSTATE_ALIVE"))
+		{
+			for (local.j = 1; local.j < (local.ents.size + 1); local.j++)
+			{
+				local.body = local.ents[local.j]
+				
+				if ((local.body isTouching local.beam) && !local.body.melted)
+				{
+					local.beam.hitbody = 1
+					thread melt_body local.body local.beam.player local.beam
+				}
+			}
+		}
+	}
+end
+
+
+auto_collision_check:
+	while (1)
+	{
+		waitthread collision_check "meltbeam_allies" "frozenbody_allies"
+		wait 0.1
+		waitthread collision_check "meltbeam_axis" "frozenbody_axis"
+		wait 0.1
+	}
+end
+
+
+spawn_player_watcher local.player:
+	if (local.player.ft_pstate == "PSTATE_ALIVE")
+	{
+		// credits to jv_map for this trick
+		local.ent = spawn trigger_multiple
+		local.ent setsize ( -16 -16 -16) (16 16 16)
+		local.ent glue local.player
+		local.ent.watchplayer = local.player
+		local.ent.team = local.player.dmteam
+		local.ent setthread spawn_triggered
+	}
+	
+	thread wait_for_spawn local.player local.ent 15
+end
+
+
+wait_for_spawn local.player local.trigger local.delay:
+	local.player.ft_spawned = 0
+	local.team = local.player.dmteam
+
+	local.endtime = level.time + local.delay
+	while (local.player != NULL && local.player.dmteam == local.team)
+	{
+		if (local.player.ft_spawned)
+		{
+			if (local.player.ft_pstate == "PSTATE_ALIVE")
+			{
+				waitthread add_frozenloc_to_list local.player.origin local.team
+			} else
+			{
+				local.player.ft_spawnfrozenbody = (waitthread pop_frozenloc_from_list local.player.dmteam)
+			}
+			break
+		} else if (level.time >= local.endtime)
+		{
+			local.player spectator
+			break
+		}
+		waitframe
+	}
+
+	if (local.trigger)
+	{
+		local.trigger remove
+	}
+end
+
+
+spawn_triggered:
+	local.player = parm.other
+	if (local.player != NULL && local.player == self.watchplayer && local.player.dmteam == self.team)
+	{
+		local.player.ft_spawned = 1
+	}
+end
+
+
+add_frozenloc_to_list local.origin local.team:
+	for (local.elem = level.ft_bodylocs[local.team]; local.elem != NIL; local.elem = local.elem.prevloc)
+	{
+		if (vector_within local.origin local.elem.origin 10.0)
+		{
+			local.existing = 1
+			break
+		}
+	}
+
+	if (local.existing)
+	{
+		if (local.elem != level.ft_bodylocs[local.team])
+		{
+			// its not at front,  move it there
+			if (local.elem.prevloc != NIL)
+			{
+				local.elem.prevloc.nextloc = local.elem.nextloc
+			}
+			
+			if (local.elem.nextloc != NIL)
+			{
+				local.elem.nextloc.prevloc = local.elem.prevloc
+			}
+		}
+	} else
+	{
+		local.elem = local createListener
+		local.elem.origin = local.origin
+
+	}
+
+	if (local.elem != level.ft_bodylocs[local.team])
+	{
+		local.elem.prevloc = level.ft_bodylocs[local.team]
+		local.elem.nextloc = NIL
+	
+		if (local.elem.prevloc != NIL)
+		{
+			local.elem.prevloc.nextloc = local.elem
+		}
+	
+		level.ft_bodylocs[local.team] = local.elem
+	}
+
+	// keep the size of the list to 15 locations
+	local.numlocs = 0
+	for (local.elem = level.ft_bodylocs[local.team]; local.elem != NIL; local.elem = local.elem.prevloc)
+	{
+		local.numlocs += 1
+		local.firstloc = local.elem
+	}
+
+	if (local.numlocs > 15)
+	{
+		local.firstloc.nextloc.prevloc = NIL
+		local.firstloc delete
+	}
+end
+
+
+pop_frozenloc_from_list local.team:
+	local.lastloc = level.ft_bodylocs[local.team]
+
+	if (local.lastloc != NIL)
+	{
+		local.result = local.lastloc.origin
+		
+		for (local.elem = local.lastloc; local.elem != NIL; local.elem = local.elem.prevloc)
+		{
+			local.firstloc = local.elem
+		}
+
+		if (local.firstloc != local.lastloc)
+		{
+			level.ft_bodylocs[local.team] = local.lastloc.prevloc
+			local.lastloc.prevloc.nextloc = NIL
+
+			local.firstloc.prevloc = local.lastloc
+			local.lastloc.nextloc = local.firstloc
+			local.lastloc.prevloc = NIL
+		}
+	} else
+	{
+		// should never happen but stick them at the origin just in case it does
+		local.result = ( 0.0 0.0 0.0 )
+	}
+end local.result
+
+
+auto_broadcast_ents local.delay:
+	level.ft_broadcastents[0] = NIL
+	
+	while (1)
+	{
+		if (level.ft_broadcastents.size > 0)
+		{
+			local.ent = level.ft_broadcastents[0]
+			if (local.ent != NULL && !local.ent.dontbroadcast)
+			{
+				local.ent svflags "+broadcast"
+			}
+
+			local.newents = NIL
+			local.newents[0] = NIL
+			for (local.i = 1; local.i < level.ft_broadcastents.size; local.i++)
+			{
+				local.newents[local.newents.size] = level.ft_broadcastents[local.i]
+			}
+
+			level.ft_broadcastents = local.newents
+		}
+
+		wait local.delay
+	}
+end

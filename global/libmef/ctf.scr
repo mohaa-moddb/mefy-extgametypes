@@ -1,0 +1,1069 @@
+/*
+================================================================================
+Server-Side Capture-The-Flag Gametype Library
+for Medal Of Honor: Allied Assault
+Version 1.3-A3 (05/12/04)
+
+Copyright (c) 2003-2004 Mark Follett
+email: mef123@geocities.com
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is furnished
+to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+================================================================================
+*/
+
+
+ctf_begin:
+	level.ctf_running = 1
+	level.ctf_version = "1.3-A3"
+	setcvar "g_ctf_version" level.ctf_version
+
+	level.mef_credits[0] = "Capture-The-Flag MOD"
+	level.mef_credits[1] = ("Version " + level.ctf_version)
+	level.mef_credits[2] = "by Mefy"
+	level.mef_credits[3] = "planetmedalofhonor.com/"
+	level.mef_credits[4] = "mefy"
+	level.mef_credits[5] = ""
+
+	level.ctf_settings[0] = NIL
+	level.mef_settings = level.ctf_settings
+
+	level.ctf_settingsdef[0]  = "disable"::bool::0
+	level.ctf_settingsdef[1]  = "pointlimit"::int::4
+	level.ctf_settingsdef[2]  = "suddendeath"::int::5
+	level.ctf_settingsdef[3]  = "fsuddendeath"::int::2
+	level.ctf_settingsdef[4]  = "alliedbase"::string::"-100 0 0 0"
+	level.ctf_settingsdef[5]  = "axisbase"::string::"100 0 0 0"
+	level.ctf_settingsdef[6]  = "returnboth"::bool::0
+	level.ctf_settingsdef[7]  = "countdown"::int::15
+	level.ctf_settingsdef[8]  = "returnpress"::int::15
+	level.ctf_settingsdef[9]  = "capturepress"::int::20
+	level.ctf_settingsdef[10] = "drophold"::int:: -1
+	level.ctf_settingsdef[11] = "friendlyreturn"::int::7
+	level.ctf_settingsdef[12] = "groundreturn"::int::25
+	level.ctf_settingsdef[13] = "dropdelay"::int::20
+	level.ctf_settingsdef[14] = "announce"::string::"dropped atbase"
+	level.ctf_settingsdef[15] = "announcefreq"::int::8
+
+	waitthread global/libmef/util.scr::read_game_settings level.ctf_settingsdef
+	waitthread global/libmef/util.scr::read_options level.ctf_settings["announce"] "announce" captured::dropped::atbase::abbr
+	
+	level.ctf_settings["button_fov"] = 60
+	level.ctf_settings["button_pressdist"] = 96
+
+	if (level.mef_maptype == "obj")
+	{
+		level.mef_basegametype = 4 // Objective-Match
+		setcvar "g_obj_axistext1" "Capture-The-Flag MOD"
+		setcvar "g_obj_axistext2" "by Mefy"
+		setcvar "g_obj_axistext3" ""
+	} else
+	{
+		level.mef_basegametype = 3 // Round-Based-Match
+		setcvar "g_obj_axistext1" ""
+		setcvar "g_obj_axistext2" "Capture-The-Flag MOD"
+		setcvar "g_obj_axistext3" "by Mefy"
+	}
+
+	setcvar "g_obj_alliedtext1" "Capture and hold" 
+	setcvar "g_obj_alliedtext3" "your team's base"
+
+	if (level.ctf_settings["returnboth"])
+	{
+		setcvar "g_obj_alliedtext2" "both flags at"
+	} else
+	{
+		setcvar "g_obj_alliedtext2" "the enemy's flag at"
+	}
+
+	setcvar "g_gametype" level.mef_basegametype
+
+	waitthread global/libmef/mapdesc.scr::setup_map level.mef_mapname
+
+	level waittill prespawn
+
+	level.dmrespawning = 1
+	level.dmroundlimit = 12 // round time limit in minutes
+
+	level waittill spawn
+
+	if (!level.mef_devmode)
+	{
+		level waittill roundstart
+	}
+
+	local.allieddolls[0] = "player/allied_airborne.tik"::15.5
+	local.allieddolls[1] = "player/allied_manon.tik"::12.25
+	local.allieddolls[2] = "player/american_army.tik"::15
+
+	local.germandolls[0] = "player/german_panzer_tankcommander.tik"::15.5
+	local.germandolls[1] = "player/german_afrika_private.tik"::14.5
+	local.germandolls[2] = "player/german_wehrmacht_soldier.tik"::14.5
+
+	level.ctf_ground = waitthread new_ground_entity
+	level.ctf_bases["allies"] = waitthread global/libmef/util.scr::read_position_string level.ctf_settings["alliedbase"]
+	level.ctf_bases["axis"] = waitthread global/libmef/util.scr::read_position_string level.ctf_settings["axisbase"]
+
+	level.ctf_flagbase["allies"] = waitthread new_flag_base level.ctf_bases["allies"] "allies" local.allieddolls[randomint(local.allieddolls.size)]
+	level.ctf_flagbase["axis"] = waitthread new_flag_base level.ctf_bases["axis"] "axis" local.germandolls[randomint(local.germandolls.size)]
+
+	level.ctf_flags["allies"] = waitthread new_flag level.ctf_flagbase["allies"].spots["allies"].origin "allies"
+	level.ctf_flags["axis"] = waitthread new_flag level.ctf_flagbase["axis"].spots["axis"].origin "axis"
+
+	waitthread attach_flag_to_entity level.ctf_flags["allies"] level.ctf_flagbase["allies"]
+	waitthread attach_flag_to_entity level.ctf_flags["axis"] level.ctf_flagbase["axis"]
+	waitframe
+
+	waitthread global/libmef/util.scr::begin_round_based_game NIL global/libmef/ctf.scr::turn_off_flags
+
+	waitthread global/libmef/util.scr::register_hud_item 4 global/libmef/ctf.scr::setup_hud_display global/libmef/ctf.scr::update_hud_display
+	thread check_flag_position_change
+
+	if (level.ctf_settings["announcefreq"] > 0)
+	{
+		thread auto_position_announce level.ctf_settings["announcefreq"]
+	}
+end
+
+
+turn_off_flags:
+	level.ctf_flagbase["allies"].button.trigger nottriggerable
+	level.ctf_flagbase["axis"].button.trigger nottriggerable
+	waitthread disable_flag_pickup level.ctf_flags["axis"]
+	waitthread disable_flag_pickup level.ctf_flags["allies"]
+end
+
+
+new_flag local.origin local.team:
+	local.ent = spawn script_origin
+	local.ent angles ( 0 0 0 )
+	local.ent.origin = local.origin
+	local.ent.team = local.team
+	local.ent.beamstart = ( 0 0 10 )
+	local.ent.beamend = ( 0 0 200 )
+
+	local.ent.beam = spawn func_beam
+	local.ent.beam minoffset 0.0
+	local.ent.beam maxoffset 0.0
+	local.ent.beam alpha 1.0
+	local.ent.beam color ( 1.0 1.0 1.0 )
+	local.ent.beam scale 20.0
+	local.ent.beam tileshader ("textures/hud/" + local.team + "_headicon")
+	local.ent.beam numsegments 1
+	local.ent.beam activate
+
+	local.ent.walktrigger = waitthread new_flag_walk_trigger local.ent local.ent.team
+	local.ent.usetrigger = waitthread new_flag_use_trigger local.ent local.ent.team
+	waitthread disable_flag_pickup local.ent
+
+	thread flag_beam_thread local.ent
+	thread flag_main_thread local.ent
+	waitframe
+end local.ent
+
+
+new_flag_walk_trigger local.flag local.team:
+	local.ent = spawn trigger_multiple
+	local.ent bind local.flag
+	local.ent.origin = (local.flag.origin + ( 0 0 100 ))
+	local.ent setsize ( -15 -15 -100 ) ( 15 15 100 )
+	local.ent.flag = local.flag
+	local.ent setthread flag_picked_up
+	local.ent.checkvision = 0
+end local.ent
+
+
+new_flag_use_trigger local.flag local.team:
+	local.ent = spawn trigger_use
+	local.ent bind local.flag
+	local.ent.origin = (local.flag.origin + ( 0 0 100 ))
+	local.ent setsize ( -30 -30 -130 ) ( 30 30 130 )
+	local.ent.flag = local.flag
+	local.ent setthread flag_picked_up
+	local.ent.checkvision = 1
+end local.ent
+
+
+enable_flag_pickup local.flag:
+	local.flag.walktrigger triggerable
+	local.flag.usetrigger triggerable
+end
+
+
+disable_flag_pickup local.flag:
+	local.flag.walktrigger nottriggerable
+	local.flag.usetrigger nottriggerable
+end
+
+
+flag_picked_up:
+	local.player = parm.other
+
+	if ((local.player.dmteam == self.flag.grabteam || self.flag.grabteam == "both") && self.flag.carrier != local.player)
+	{
+		if (!self.checkvision || (self cansee local.player 360 120))
+		{
+			waitthread player_got_flag self.flag local.player
+		}
+	}
+end
+
+
+attach_flag_to_entity local.flag local.entity local.team local.event:
+	while (!local.flag.candetach)
+	{
+		waitframe
+	}
+
+	if (local.entity != NULL)
+	{
+		local.flag.candetach = 0
+		local.flag.signal delete
+		local.flag.signal = local CreateListener
+
+		if (local.flag.carrier != NULL)
+		{
+			local.flag.carrier.ctf_flags[local.flag.team] = NIL
+		}
+		local.flag.carrier = local.entity
+		local.flag.carrier.ctf_flags[local.flag.team] = local.flag
+		local.flag.entteam = local.team
+		local.flag.event = local.event
+	}
+end
+
+
+flag_main_thread local.flag:
+	local.flag.carrier = level.ctf_ground
+	local.flag.signal = local CreateListener
+
+	while (1)
+	{
+		if (local.flag.carrier.classname == "Player")
+		{
+			waitthread attach_flag_to_player local.flag local.flag.carrier
+		} else if (local.flag.carrier.ctf_attachthread != NIL)
+		{
+			waitthread local.flag.carrier.ctf_attachthread local.flag local.flag.carrier
+		}
+
+		if (local.flag.event)
+		{
+			waitthread announce_flag_position local.flag local.flag.entteam local.flag.event
+		}
+
+		waitthread update_flag_position_text local.flag
+
+		local.detachthread = local.flag.carrier.ctf_detachthread
+		local.oldcarrier = local.flag.carrier
+
+		local.signal = local.flag.signal
+		local.flag.candetach = 1
+		while (local.signal != NULL)
+		{
+			waitframe
+		}
+		
+		if (local.detachthread != NIL)
+		{
+			waitthread local.detachthread local.flag local.oldcarrier
+		}
+	}
+end
+
+
+flag_beam_thread local.flag:
+	while (local.flag != NULL)
+	{
+		local.flag.beam.origin = (local.flag.origin + local.flag.beamstart)
+		local.flag.beam endpoint (local.flag.origin + local.flag.beamend)
+		waitframe
+	}
+end
+
+
+new_flag_base local.spot local.team local.model:
+	local.ent = waitthread new_button_doll local.spot.origin local.spot.angles local.team local.model[1] local.model[2]
+
+	local.ent.symbol = spawn func_beam
+	local.ent.symbol.origin = local.ent.origin + ( 0 0 98 )
+	local.ent.symbol endpoint (local.ent.symbol.origin + ( 0 0 15 ))
+	local.ent.symbol minoffset 0.0
+	local.ent.symbol maxoffset 0.0
+	local.ent.symbol color ( 1.0 1.0 1.0 )
+	local.ent.symbol scale 5.0
+	local.ent.symbol shader ("textures/hud/" + local.team + "_headicon")
+	local.ent.symbol numsegments 1
+	local.ent.symbol alpha 0.75
+	local.ent.symbol activate
+
+	local.ent.team = local.team
+	local.ent.desc = local.spot.desc
+	local.ent.spots["allies"] = waitthread new_flag_spot (local.ent.origin + (angles_toleft local.ent.angles) * 30 + (0 0 10)) local.ent "allies"
+	local.ent.spots["axis"] = waitthread new_flag_spot (local.ent.origin + (angles_toleft local.ent.angles) * -30 + (0 0 10)) local.ent "axis"
+	
+	if (level.ctf_settings["returnpress"] >= 0)
+	{
+		local.ent.spots["allies"] nottriggerable
+		local.ent.spots["axis"] nottriggerable
+	}
+
+	local.ent.ctf_attachthread = attach_flag_to_base
+	local.ent.ctf_detachthread = detach_flag_from_ground
+end local.ent
+
+
+new_button_doll local.origin local.angles local.team local.model local.chestoffset:
+	local.ent = spawn script_model
+	local.ent model local.model
+	local.ent.origin = local.origin
+	local.ent.angles = local.angles
+
+	if (local.team == "allies")
+	{
+		local.color = ( 0.0 0.0 1.0 )
+	} else
+	{
+		local.color = ( 1.0 0.0 0.0 )
+	}
+
+	local.ent.button = waitthread new_button (local.origin + ( 0 0 70 ) + ((angles_toforward local.angles) * local.chestoffset)) ( -90 local.angles[1] local.angles[2] ) local.ent local.color
+	local.ent.button.base = local.ent
+end local.ent
+
+
+new_flag_spot local.origin local.base local.team:
+	local.ent = spawn trigger_multiple
+	local.ent.origin = local.origin
+	local.ent setsize ( -30 -30 -30 ) ( 30 30 30 )
+	local.ent.base = local.base
+	local.ent.team = local.team
+	local.ent.dropteam = local.base.team
+	local.ent setthread flag_hit_spot
+end local.ent
+
+
+flag_hit_spot:
+	local.player = parm.other
+	local.flag = local.player.ctf_flags[self.team]
+
+	if (local.flag != NIL && local.player.dmteam == self.dropteam)
+	{
+		waitthread attach_flag_to_entity local.flag self.base self.base.team "atbase"
+	}
+end
+
+
+attach_flag_to_base local.flag local.flagbase:
+	local.flag jumpto local.flagbase.spots[local.flag.team].origin
+
+	if (level.ctf_settings["capturepress"] < 0)
+	{
+		local.flag.grabteam = waitthread get_other_team local.flagbase.team
+		waitthread enable_flag_pickup_delay local.flag local.ground
+	}
+
+	if ((waitthread check_flags_at_base local.flagbase) && !local.flagbase.countdown)
+	{
+		thread flag_capture_countdown local.flagbase
+	}
+end
+
+
+check_flags_at_base local.flagbase:
+	if (level.ctf_settings["returnboth"])
+	{
+		if (local.flagbase.ctf_flags["allies"] != NIL && local.flagbase.ctf_flags["axis"] != NIL)
+		{
+			end 1
+		}
+	} else 
+	{
+		if (local.flagbase.ctf_flags[(waitthread get_other_team local.flagbase.team)])
+		{
+			end 1
+		}
+	}
+end 0
+
+
+flag_capture_countdown local.flagbase:
+	local.flagbase.countdown = 1
+	level.mef_scoring[local.flagbase.team] = 1
+
+	local.flagbase playsound plantbomb
+	local.flagbase loopsound bombtick
+	
+	local.endtime = level.time + level.ctf_settings["countdown"]
+
+	while (level.time < local.endtime || local.flagbase.button.pressed == 1)
+	{
+		wait .1
+		if (!(waitthread check_flags_at_base local.flagbase))
+		{
+			local.flagbase stoploopsound
+			level.mef_scoring[local.flagbase.team] = NIL
+			local.flagbase.countdown = 0
+			end
+		}
+		if (level.time == (local.endtime - 10))
+		{
+			local.flagbase stoploopsound
+			local.flagbase loopsound final_countdown
+		}
+ 	}
+
+ 	local.flagbase stoploopsound
+
+	waitthread global/libmef/util.scr::team_scored local.flagbase.team
+
+	local.otherteam = waitthread get_other_team local.flagbase.team
+	waitthread attach_flag_to_entity local.flagbase.ctf_flags[local.otherteam] level.ctf_flagbase[local.otherteam]
+
+	local.flagbase.countdown = 0
+end
+
+
+new_button local.origin local.angles local.doll local.color:
+	local.ent = spawn script_model
+	local.ent model "lights/ceilinglamp1.tik"
+	local.ent.origin = local.origin
+	local.ent.startpos = local.origin
+	local.ent.angles = local.angles
+	local.ent notsolid
+	local.ent dmg 0
+	local.ent scale 0.75
+
+	local.ent light local.color[0] local.color[1] local.color[2] 8
+	local.ent lightOff
+	
+	local.ent.trigger = spawn trigger_use
+	local.ent.trigger.origin = local.origin
+	local.ent.trigger setsize ( -30 -30 -30 ) ( 30 30 30 )
+	
+	local.ent.pressed = 0
+	local.ent thread button_waittill_pressed
+end local.ent
+
+
+button_press local.button:
+	local.button.pressed = 1
+	local.button lightOn
+	local.button playsound med_canteen
+	local.button moveTo (local.button.origin + ((angles_toup local.button.angles) * 1.75))
+	local.button waitmove
+end
+
+
+button_release local.button:
+	local.button moveTo local.button.startpos
+	local.button waitmove
+	local.button lightOff
+	local.button.pressed = 0
+end
+
+
+button_waittill_pressed:
+	while (self != NULL)
+	{
+		self.trigger waittill trigger
+
+		local.player = parm.other
+	        if (self != NULL && (waitthread player_can_press self local.player))
+	        {
+	        	local.player.ctf_pressingbutton = 1
+	        	
+			if (local.player.dmteam == self.base.team)
+			{
+				if (level.ctf_settings["returnpress"] >= 0)
+				{
+					local.presstime = level.ctf_settings["returnpress"]
+				} else
+				{
+					local.presstime = 0
+				}
+			} else
+			{
+				if (level.ctf_settings["capturepress"] >= 0)
+				{
+					local.presstime = level.ctf_settings["capturepress"]
+				} else
+				{
+					local.presstime = 0
+				}
+			}
+			
+			local.counter = 0
+			while (local.player != NULL && (Isalive local.player) && (waitthread player_can_press self local.player) && (local.player cansee self.base level.ctf_settings["button_fov"] level.ctf_settings["button_pressdist"]) && (local.player.useheld == 1))
+			{
+				if (local.counter >= local.presstime)
+				{
+					self playsound radiobomb
+					waitthread button_pressed_event self local.player
+					goto complete
+				}
+				
+				if (local.counter == 0)
+				{
+					local.player stopwatch (local.presstime * .1)
+					waitthread button_press self
+				}
+
+				wait .1
+				local.counter++
+			}
+
+complete:
+			if (local.counter > 0)
+			{
+				if (local.player != NULL)
+				{
+					local.player stopwatch 0
+				}
+				waitthread button_release self
+			}
+			
+			if (local.player != NULL)
+			{
+				local.player.ctf_pressingbutton = 0
+			}
+		}
+	}
+end
+
+
+player_can_press local.button local.player:
+	if (local.player.dmteam == local.button.base.team)
+	{
+		// press a button to return a flag
+		if (local.player.ctf_flags.size > 0)
+		{
+			end 1
+		}
+	} else
+	{
+		// press a button to capture a flag
+		if (local.button.base.ctf_flags.size > 0)
+		{
+			end 1
+		}
+	}
+end 0
+
+
+button_pressed_event local.button local.player:
+	local.flagbase = self.base
+
+	if (local.player.dmteam == local.flagbase.team)
+	{
+		// press a button to return a flag
+		if (local.player.ctf_flags["allies"] != NIL)
+		{
+			waitthread attach_flag_to_entity local.player.ctf_flags["allies"] local.flagbase local.flagbase.team "atbase"
+		}
+		
+		if (local.player.ctf_flags["axis"] != NIL)
+		{
+			waitthread attach_flag_to_entity local.player.ctf_flags["axis"] local.flagbase local.flagbase.team "atbase"
+		}
+	} else
+	{
+		// press a button to capture a flag
+		if (local.flagbase.ctf_flags["allies"] != NIL)
+		{
+			waitthread player_got_flag local.flagbase.ctf_flags["allies"] local.player
+		}
+
+		if (local.flagbase.ctf_flags["axis"] != NIL)
+		{
+			waitthread player_got_flag local.flagbase.ctf_flags["axis"] local.player
+		}
+	}
+end
+
+
+attach_flag_to_player local.flag local.player:
+	local.flag stop
+
+	if (local.player.ctf_flagorigin == NIL)
+	{
+		local.player.ctf_flagorigin = spawn script_origin
+		local.player.ctf_flagorigin.origin = local.player.origin
+		local.player.ctf_flagorigin glue local.player
+		local.player.ctf_detachthread = detach_flag_from_player
+	}
+
+	local.flag bind local.player.ctf_flagorigin
+
+	waitthread set_flag_positions local.player
+
+	local.flag.beamstart = ( 0 0 15 )
+	local.flag.beamend = ( 0 0 110 )
+	thread flag_carrier_thread local.flag local.player
+
+	if (level.ctf_settings["drophold"] >= 0)
+	{
+		thread flag_check_drop local.flag local.player
+	}
+	
+	if ((local.flag.team == local.player.dmteam) && (level.ctf_settings["friendlyreturn"] > 0))
+	{
+		thread check_flag_return local.flag local.player level.ctf_settings["friendlyreturn"]
+	}
+end
+
+
+detach_flag_from_player local.flag local.player:
+	local.flag unbind
+	local.flag stop
+	if (local.player != NULL)
+	{
+		waitthread set_flag_positions local.player
+		local.player.ctf_dropflag = NIL
+	}
+
+	local.flag.beamstart = ( 0 0 10 )
+	local.flag.beamend = ( 0 0 200 )
+end
+
+
+set_flag_positions local.player:
+	if (local.player.ctf_flags.size == 2)
+	{
+		local.player.ctf_flags["allies"] jumpto (local.player.origin + ( -10 0 80 ))
+		local.player.ctf_flags["axis"] jumpto (local.player.origin + ( 10 0 80 ))
+	} else if (local.player.ctf_flags["allies"] != NIL)
+	{
+		local.player.ctf_flags["allies"] jumpto (local.player.origin + (0 0 80))
+	} else if (local.player.ctf_flags["axis"] != NIL)
+	{
+		local.player.ctf_flags["axis"] jumpto (local.player.origin + (0 0 80))
+	}
+end
+
+
+player_got_flag local.flag local.player:
+	if ((local.flag.team == local.player.dmteam) && (level.ctf_settings["friendlyreturn"] == 0))
+	{
+		waitthread attach_flag_to_entity local.flag level.ctf_flagbase[local.flag.team] local.flag.team "atbase"		
+	} else
+	{
+		waitthread attach_flag_to_entity local.flag local.player local.player.dmteam "captured"
+	}
+end
+
+
+player_dropped_flag local.flag local.player local.team local.lastpos:
+	if ((local.flag.team != local.team) && (level.ctf_settings["groundreturn"] == 0))
+	{
+		waitthread attach_flag_to_entity local.flag level.ctf_flagbase[local.flag.team] local.flag.team "atbase"		
+	} else
+	{
+		local.flag.lastpos = local.lastpos
+		waitthread attach_flag_to_entity local.flag level.ctf_ground local.team "dropped"
+	}
+end
+
+
+flag_carrier_thread local.flag local.player:
+	local.team = local.player.dmteam
+	local.lastpos = local.flag.origin
+	local.signal = local.flag.signal
+
+	while (local.signal != NULL)
+	{
+		if (local.player == NULL || local.player.dmteam != local.team || !IsAlive(local.player) || local.player.ctf_dropflag)
+		{
+			waitthread player_dropped_flag local.flag local.player local.team local.lastpos
+			end
+		} else
+		{
+			if ((local.player getposition) == "crouching")
+			{
+				local.lastpos = (local.flag.origin - ( 0 0 40 ))
+			} else
+			{
+				local.lastpos = local.flag.origin
+			}
+		}
+
+		waitframe
+	}
+end
+
+
+flag_check_drop local.flag local.player:
+	local.stopwatchtime = 4
+	local.signal = local.flag.signal
+	
+	while (local.player != NULL && local.signal != NULL && local.player.useheld)
+	{
+		waitframe
+	}
+
+	local.counter = -1
+	
+	while (local.player != NULL && local.signal != NULL)
+	{
+		if ((local.counter == 0 || local.player.useheld) && !local.player.ctf_pressingbutton)
+		{
+			if (local.counter == -1)
+			{
+				// wait a frame to allow a button-press to supercede a drop
+				waitframe
+				local.counter++
+			} else
+			{
+				if (local.counter == local.stopwatchtime)
+				{
+					local.player stopwatch ((level.ctf_settings["drophold"] - local.stopwatchtime) * 0.1)
+					local.stopwatch = 1
+				}
+
+				local.counter++
+				if (local.counter >= level.ctf_settings["drophold"])
+				{
+					local.player.ctf_dropflag = 1
+					end
+				}
+			
+				wait .1
+			}
+		} else
+		{
+			if (local.stopwatch)
+			{
+				local.player stopwatch 0
+				local.stopwatch = 0
+			}
+			
+			local.counter = -1
+			waitframe
+		}
+	}
+	
+	if (local.stopwatch && local.player != NULL)
+	{
+		local.player stopwatch 0
+	}
+end
+
+
+new_ground_entity:
+	local.ent = spawn Listener
+	local.ent.ctf_attachthread = attach_flag_to_ground
+	local.ent.ctf_detachthread = detach_flag_from_ground
+end local.ent
+
+
+attach_flag_to_ground local.flag local.ground:
+	if (local.flag.lastpos != NIL)
+	{
+		local.flag jumpto local.flag.lastpos
+		local.flag.lastpos = NIL
+	}
+
+	local.flag moveTo (trace local.flag.origin (local.flag.origin + ( 0 0 -10000 )) 1)
+	local.flag move
+
+	local.flag.grabteam = "both"
+	waitthread enable_flag_pickup_delay local.flag local.ground
+
+	if (level.ctf_settings["groundreturn"] > 0)
+	{
+		thread check_flag_return local.flag local.ground level.ctf_settings["groundreturn"]
+	}
+end
+
+
+detach_flag_from_ground local.flag local.ground:
+	local.flag.beam alpha 1.0
+	waitthread disable_flag_pickup local.flag
+end
+
+
+enable_flag_pickup_delay local.flag local.carrier:
+	if (level.ctf_settings["dropdelay"] > 0)
+	{
+		thread reset_flag local.flag local.carrier level.ctf_settings["dropdelay"]
+	} else
+	{
+		waitthread enable_flag_pickup local.flag
+	}
+end
+
+
+reset_flag local.flag local.carrier local.delay:
+	local.counter = 0
+	local.flag.beam alpha 0.5
+	local.signal = local.flag.signal
+	
+	while (local.signal != NULL)
+	{
+		local.counter++
+		if (local.counter >= local.delay)
+		{
+			local.flag.beam alpha 1.0
+			waitthread enable_flag_pickup local.flag
+			end
+		}
+		wait 0.1
+	}
+end
+
+
+check_flag_return local.flag local.carrier local.delay:
+	local.counter = 0
+	local.signal = local.flag.signal
+	
+	while (local.signal != NULL)
+	{
+		local.counter++
+		if (local.counter >= local.delay)
+		{
+			waitthread attach_flag_to_entity local.flag level.ctf_flagbase[local.flag.team] local.flag.team "atbase"		
+			end
+		}
+		wait 1
+	}
+end
+
+
+get_other_team local.team:
+	if (local.team == "allies")
+	{
+		end "axis"
+	} else
+	{
+		end "allies"
+	}
+end
+
+
+setup_hud_display:
+	local.coordx = 10
+	local.coordy = -140
+	local.ystep = 25
+
+	huddraw_align  self.idx left bottom
+	huddraw_font   self.idx facfont-20
+	huddraw_rect   self.idx (local.coordx + 30) local.coordy 100 100
+	huddraw_color  self.idx 1.0 1.0 1.0
+	huddraw_alpha  self.idx 1.0
+
+	huddraw_align  (self.idx + 1) left bottom
+	huddraw_font   (self.idx + 1) facfont-20
+	huddraw_rect   (self.idx + 1) (local.coordx + 30) (local.coordy + local.ystep) 100 100
+	huddraw_color  (self.idx + 1) 1.0 1.0 1.0
+	huddraw_alpha  (self.idx + 1) 1.0
+
+	huddraw_shader (self.idx + 2) ("textures/hud/allies")
+	huddraw_align (self.idx + 2) left bottom
+	huddraw_rect  (self.idx + 2) local.coordx (local.coordy - 5) 25 25
+	huddraw_color (self.idx + 2) 1.0 1.0 1.0
+	huddraw_alpha (self.idx + 2) 1.0
+
+	huddraw_shader (self.idx + 3) ("textures/hud/axis")
+	huddraw_align (self.idx + 3) left bottom
+	huddraw_rect  (self.idx + 3) local.coordx (local.coordy + local.ystep - 5) 25 25
+	huddraw_color (self.idx + 3) 1.0 1.0 1.0
+	huddraw_alpha (self.idx + 3) 1.0
+end
+
+
+update_hud_display:
+	local.alliescolor = level.ctf_flagposcol["allies"]
+	local.axiscolor = level.ctf_flagposcol["axis"]
+	
+	huddraw_color self.idx local.alliescolor[0] local.alliescolor[1] local.alliescolor[2]
+	huddraw_string self.idx level.ctf_flagpos["allies"]
+	huddraw_color (self.idx + 1) local.axiscolor[0] local.axiscolor[1] local.axiscolor[2]
+	huddraw_string (self.idx + 1) level.ctf_flagpos["axis"]
+end
+
+
+announce_flag_position local.flag local.team local.action:
+	local.teamprefix["allies"] = "Allies have "
+	local.teamprefix["axis"] = "Axis has "
+	local.flagdesc["allies"] = "Allied"
+	local.flagdesc["axis"] = "Axis"
+
+	switch (local.action)
+	{
+		case "captured":
+		case "dropped":
+			local.str = local.teamprefix[local.team] + local.action + " the " + local.flagdesc[local.flag.team] + " flag!"
+			break
+			
+		case "atbase":
+			local.str = "The " + local.flagdesc[local.flag.team] + " flag is at the " + local.flagdesc[local.team] + " base!"
+			break
+	}
+	
+	if (level.ctf_settings[("announce_" + local.action)])
+	{
+		local.str += (waitthread get_flag_full_desc local.flag)
+	}
+	
+	iprintlnbold_noloc local.str
+end
+
+
+get_flag_position_text local.flag local.fulldesc:
+	if (local.fulldesc == NIL)
+	{
+		local.fulldesc = (!level.ctf_settings["announce_abbr"])
+	}
+	
+
+	if (local.fulldesc)
+	{
+		local.desc = waitthread global/libmef/mapdesc.scr::get_player_position local.flag.origin
+	} else
+	{
+		local.desc = waitthread global/libmef/mapdesc.scr::get_player_position_abbr local.flag.origin
+	}
+end local.desc
+
+
+get_flag_full_desc local.flag:
+	local.desc = waitthread get_flag_position_text local.flag 1
+
+	if (local.desc == "" && local.flag.carrier != level.ctf_ground && local.flag.carrier.classname != "Player")
+	{
+		local.desc = local.flag.carrier.desc
+	}
+
+	if (local.desc != "")
+	{
+		local.desc = " [" + local.desc + "]"
+	}
+end local.desc
+
+
+update_flag_position_text local.flag:
+	local.desc = waitthread get_flag_position_text local.flag
+	
+	if (local.flag.carrier == level.ctf_ground)
+	{
+		local.team = "none"
+		local.brackets = "--"
+
+		if (local.desc == "" || !level.ctf_settings["announce_dropped"])
+		{
+			local.desc = "Ground"
+		}
+	} else if (local.flag.carrier.classname == "Player")
+	{
+		local.team = local.flag.carrier.dmteam
+		local.brackets = "**"
+
+		if (local.desc == "" || !level.ctf_settings["announce_captured"])
+		{
+			if (local.team == "allies")
+			{
+				local.desc = "Allied Player"
+			} else
+			{
+				local.desc = "Axis Player"
+			}
+		}
+	} else
+	{
+		local.team = local.flag.carrier.team
+		local.brackets = "[]"
+		
+		if (local.desc == "")
+		{
+			local.desc = local.flag.carrier.desc
+		}
+		
+		if (local.desc == "" || !level.ctf_settings["announce_atbase"])
+		{
+			if (local.team == "allies")
+			{
+				local.desc = "Allied Base"
+			} else
+			{
+				local.desc = "Axis Base"
+			}
+		}
+	}
+	
+	if (local.desc != "")
+	{
+		local.desc = " " + local.brackets[0] + local.desc + local.brackets[1]
+	}	
+
+	switch (local.team)
+	{
+		case "allies":
+			local.color = ( 0.5 0.5 1.0 )
+			break
+			
+		case "axis":
+			local.color = ( 1.0 0.5 0.5 )
+			break
+		
+		default:
+			local.color = ( 1.0 1.0 1.0 )
+			break
+	}
+	
+	level.ctf_flagpos[local.flag.team] = local.desc
+	level.ctf_flagposcol[local.flag.team] = local.color
+end
+
+
+check_flag_position_change:
+	while (1)
+	{
+		if (level.ctf_flagpos["allies"] != local.alliesflagpos || level.ctf_flagposcol["allies"] != local.alliesflagposcol)
+		{
+			local.alliesflagpos = level.ctf_flagpos["allies"]
+			local.alliesflagposcol = level.ctf_flagposcol["allies"]
+			level.mef_updatehud = 1
+		}
+		
+		if (level.ctf_flagpos["axis"] != local.axisflagpos || level.ctf_flagposcol["axis"] != local.axisflagposcol)
+		{
+			local.axisflagpos = level.ctf_flagpos["axis"]
+			local.axisflagposcol = level.ctf_flagposcol["axis"]
+			level.mef_updatehud = 1
+		}
+
+		waitframe
+	}
+end
+
+
+auto_position_announce local.freq:
+	while (1)
+	{
+		waitthread update_flag_position_text level.ctf_flags["allies"]
+		waitthread update_flag_position_text level.ctf_flags["axis"]
+		
+		if (local.freq > 0)
+		{
+			wait local.freq
+		} else
+		{
+			waitframe
+		}
+	}
+end

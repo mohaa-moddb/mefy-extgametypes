@@ -1,0 +1,105 @@
+// DESTROYED VILLAGE
+// ARCHITECTURE: NED
+// SCRIPTING: NED
+
+// **********************************************************************
+// Extended-Gametype Mapscript Version 1.0 (06-02-04)
+// By Mark Follett (Mefy)
+// email: mef123@geocities.com
+// web: www.planetmedalofhonor.com/mefy
+// You are free to modify and redistribute as long as you keep these
+// credits.
+// **********************************************************************
+
+main:
+
+// set scoreboard messages
+setcvar "g_obj_alliedtext1" "Destroyed Village"
+setcvar "g_obj_alliedtext2" ""
+setcvar "g_obj_alliedtext3" ""
+setcvar "g_obj_axistext1" ""
+setcvar "g_obj_axistext2" ""
+setcvar "g_obj_axistext3" ""
+
+setcvar "g_scoreboardpic" "mohdm2"
+
+	level.mef_mapname = "mohdm2"
+	level.mef_maptype = "dm"
+	level.mef_supportedgametypes = "ffa"::"tdm"::"rbm"::"ft"::"ctf"
+	level.mef_defaultgametype = "ft"
+
+	switch (waitthread global/libmef/util.scr::get_gametype)
+	{
+		case "ctf":
+			// **********three axis-allied base pairs to select from **************
+			local.alliedbases[0] = "-3320 -2449 -22.94 60" // southeast sector
+			local.axisbases[0]   = "296 864 18.11 180" // northwest sector
+
+			local.alliedbases[1] = "-1895 -1978 0.13 180" // east sector
+			local.axisbases[1]   = "-1036 1320 28.47 -90" // west sector
+
+			local.alliedbases[2] = "-901 -3440 76.09 90" // northeast sector
+			local.axisbases[2]   = "-3091 806 24.09 -60" // southwest sector
+			// ********************************************************************
+
+			local.lastbase = (int(getcvar "g_ctf_lastbase"))
+			local.nextbase = local.lastbase
+			while (local.nextbase == local.lastbase)
+			{
+				local.nextbase = randomint(local.alliedbases.size)
+			}
+
+			setcvar "g_ctf_lastbase" local.nextbase
+
+			level.ctf_settings["alliedbase"] = local.alliedbases[local.nextbase]
+			level.ctf_settings["axisbase"] = local.axisbases[local.nextbase]
+
+			thread global/libmef/ctf.scr::ctf_begin
+			break
+
+		case "ft":
+			thread global/libmef/ft.scr::ft_begin
+			break
+
+		case "rbm":
+			thread roundbasedthread
+			break
+	}
+
+	level waittill prespawn
+
+	//*** Precache Dm Stuff
+	exec global/DMprecache.scr
+
+	exec global/door_locked.scr::lock
+	level.script = maps/dm/mohdm2.scr
+	exec global/ambient.scr mohdm2
+	
+	level waittill spawn
+
+	//add in our kill brush under the cheat point.
+	local.killbrush = spawn trigger_hurt
+	local.killbrush damage 10000
+	local.killbrush.origin = ( -2200 2200 -80 )
+	local.killbrush setsize ( -1000 -1000 -120 ) ( 1000 1000 0 )
+
+end
+
+//-----------------------------------------------------------------------------
+
+roundbasedthread:
+
+	// Can specify different scoreboard messages for round based games here.
+
+	level waitTill prespawn
+
+	level waittill spawn
+
+	// set the parameters for this round based match
+	level.dmrespawning = 0 // 1 or 0
+	level.dmroundlimit = 5 // round time limit in minutes
+	level.clockside = kills // set to axis, allies, kills, or draw
+
+	level waittill roundstart
+
+end

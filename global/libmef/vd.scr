@@ -1,0 +1,313 @@
+/*
+================================================================================
+Server-Side Voodoo-Dolls Gametype Library
+for Medal Of Honor: Allied Assault
+Version 1.2-A3 (05/12/04)
+
+Copyright (c) 2003-2004 Mark Follett
+email: mef123@geocities.com
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is furnished
+to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+================================================================================
+*/
+
+
+vd_begin:
+	level.vd_running = 1
+	level.vd_version = "1.2-A3"
+	setcvar "g_vd_version" level.vd_version
+
+	level.mef_credits[0] = "Voodoo-Dolls MOD"
+	level.mef_credits[1] = ("Version " + level.vd_version)
+	level.mef_credits[2] = "by Mefy"
+	level.mef_credits[3] = "planetmedalofhonor.com/"
+	level.mef_credits[4] = "mefy"
+	level.mef_credits[5] = ""
+
+	level.vd_settings[0] = NIL
+	level.mef_settings = level.vd_settings
+
+	level.vd_settingsdef[0] = "disable"::bool::0
+	level.vd_settingsdef[1] = "settime"::int::50    //tenths of a second
+	level.vd_settingsdef[2] = "defusetime"::int::35 //tenths of a second
+	level.vd_settingsdef[3] = "ticktime"::int::60   //seconds
+	level.vd_settingsdef[4] = "activatedelay"::int::20 // seconds till bombs are activated
+	level.vd_settingsdef[5] = "attacker"::string::"both" // the attacking team
+
+	waitthread global/libmef/util.scr::read_game_settings level.vd_settingsdef
+
+	// bomb settings
+	level.bomb_defuse_time = level.vd_settings["defusetime"]
+	level.bomb_set_time = level.vd_settings["settime"]
+	level.bomb_tick_time = level.vd_settings["ticktime"]
+	level.bomb_explosion_radius = 1054  //quake units
+	level.bomb_damage = 200
+	level.bomb_use_distance = 128 //quake units
+	level.bombusefov = 30
+
+	level.vd_playerexplosion_damage = level.bomb_damage
+	level.vd_playerexplosion_radius = level.bomb_explosion_radius * 0.05
+	level.vd_second_bomb_tick_add = 7  // seconds to add to second bomb time after the first blows
+
+	if (level.mef_maptype == "obj")
+	{
+		level.mef_basegametype = 4 // Objective-Match
+		setcvar "g_obj_axistext1" "Voodoo-Dolls MOD"
+		setcvar "g_obj_axistext2" "by Mefy"
+		setcvar "g_obj_axistext3" ""
+	} else
+	{
+		level.mef_basegametype = 3 // Round-Based-Match
+		setcvar "g_obj_axistext1" ""
+		setcvar "g_obj_axistext2" "Voodoo-Dolls MOD"
+		setcvar "g_obj_axistext3" "by Mefy"
+	}
+
+	setcvar "g_obj_alliedtext1" "Find and destroy"
+	setcvar "g_obj_alliedtext2" "the enemy team's"
+	setcvar "g_obj_alliedtext3" "voodoo doll"
+
+	setcvar "g_gametype" level.mef_basegametype
+
+	level waittill prespawn
+
+	level waittill spawn
+
+	level.dmrespawning = 1 // 1 or 0
+	level.dmroundlimit = 7 // round time limit in minutes
+	level.clockside = kills // set to axis, allies, kills, or draw
+
+	if (!level.mef_devmode)
+	{
+		level waittill roundstart
+	}
+
+	local.alliedmodels[0] = "allied_airborne"
+	local.alliedmodels[1] = "allied_manon"
+	local.alliedmodels[2] = "american_army"
+
+	local.axismodels[0] = "german_panzer_tankcommander"
+	local.axismodels[1] = "german_afrika_private"
+	local.axismodels[2] = "german_wehrmacht_soldier"
+
+	local.alliedmodel = ("player/" + local.alliedmodels[randomint(local.alliedmodels.size)] + ".tik")
+	local.axismodel = ("player/" + local.axismodels[randomint(local.axismodels.size)] + ".tik")
+
+	if (level.vd_settings["alliedbase"] == NIL && level.vd_settings["axisbase"] == NIL)
+	{
+		local.basepair = waitthread global/libmef/bases.scr::select_basepair
+	}
+	
+	local.alliedbase = waitthread global/libmef/util.scr::read_position_string local.basepair[1]
+	local.axisbase   = waitthread global/libmef/util.scr::read_position_string local.basepair[2]
+
+	if (level.mef_devmode)
+	{
+		waitthread global/libmef/bases.scr::debug_showbases
+		iprintlnbold_noloc ("Allied base: " + local.alliedbase.desc)
+		iprintlnbold_noloc ("Axis base: " + local.axisbase.desc)
+		level.vd_settings["activatedelay"] = 1
+	}
+
+//	local.alliedbase = level.vd_albases[0]
+//	local.axisbase = level.vd_axbases[1]
+
+	level.vd_bombs["allies"] = waitthread setup_doll local.alliedbase "axis" local.alliedmodel
+	level.vd_bombs["axis"] = waitthread setup_doll local.axisbase "allies" local.axismodel
+
+	level.vd_bombs["allies"].meter = waitthread new_bombmeter 50 7 -180 allies level.vd_bombs["allies"]
+	level.vd_bombs["axis"].meter = waitthread new_bombmeter 55 27 -180 axis level.vd_bombs["axis"]
+
+	waitthread global/libmef/util.scr::register_hud_item 6 global/libmef/vd.scr::setup_bombmeter_display global/libmef/vd.scr::update_bombmeter_display
+
+	thread check_bomb_status 1.5
+	thread activatebombs level.vd_settings["activatedelay"]
+end
+
+
+setup_doll local.base local.team local.model:
+	local.doll = spawn script_model
+	local.doll model local.model
+	local.doll.origin = local.base.origin
+	local.doll.angles = local.base.angles
+	local.doll.destroy_thread = global/libmef/vd.scr::kill_doll
+
+	local.doll.symbol = spawn func_beam
+	local.doll.symbol.origin = local.doll.origin + ( 0 0 98 )
+	local.doll.symbol endpoint (local.doll.symbol.origin + ( 0 0 15 ))
+	local.doll.symbol minoffset 0.0
+	local.doll.symbol maxoffset 0.0
+	local.doll.symbol color ( 1.0 1.0 1.0 )
+	local.doll.symbol scale 5.0
+	local.doll.symbol shader ("textures/hud/" + (waitthread global/libmef/util.scr::get_other_team local.team) + "_headicon")
+	local.doll.symbol numsegments 1
+	local.doll.symbol alpha 0.75
+	local.doll.symbol life 0
+	local.doll.symbol activate
+
+	local.tname = "doll_" + local.team
+	local.doll.targetname = local.tname
+
+	local.bomborigin = (local.base.origin + ((angles_toforward local.base.angles) * 10) + ((angles_toup local.base.angles) * 66))
+	local.bomb = waitthread global/libmef/bomb.scr::new_bomb local.bomborigin local.base.angles local.team local.tname
+	local.bomb.explode_thread = global/libmef/vd.scr::firstbombexploded
+	local.bomb.desc = local.base.desc
+
+	local.bomb.trigger_name nottriggerable
+	local.bomb hide
+
+	local.bomb thread global/libmef/bomb.scr::bomb_thread
+end local.bomb
+
+
+kill_doll:
+	self.symbol remove
+	self anim death_explosion_small
+end
+
+
+activate_bomb local.bomb:
+	local.bomb.timeleft = 1.0
+	local.bomb show
+	local.bomb.trigger_name triggerable
+end
+
+
+activatebombs local.activatedelay:
+	wait local.activatedelay
+	waitthread activate_bomb level.vd_bombs["allies"]
+	waitthread activate_bomb level.vd_bombs["axis"]
+	iprintlnbold_noloc "Bombs activated."
+end
+
+
+firstbombexploded:
+	waitthread kill_team self.defusing_team
+	local.otherbomb = level.vd_bombs[self.planting_team]
+
+	if (local.otherbomb.bomb_set > 0)
+	{
+		local.otherbomb.defuse_thread = global/libmef/vd.scr::secondbombdefused
+		local.otherbomb.explode_thread = global/libmef/vd.scr::secondbombexploded
+		local.otherbomb.bomb_tick_time = local.otherbomb.bomb_tick_time + level.vd_second_bomb_tick_add
+		local iprintlnbold_noloc ("A bomb is still set! [" + local.otherbomb.desc + "]")
+	} else
+	{
+		waitthread global/libmef/util.scr::do_teamwin self.planting_team
+	}
+end
+
+
+secondbombdefused:
+	waitthread global/libmef/util.scr::do_teamwin self.defusing_team
+end
+
+
+secondbombexploded:
+	waitthread kill_team both
+	waitthread global/libmef/util.scr::do_teamwin draw
+end
+
+
+kill_team local.team:
+	for (local.i = 1; local.i < ($player.size + 1); local.i++)
+	{
+		local.player = $player[local.i]
+		if (local.player != NIL && local.player != NULL && local.player.dmteam != "spectator")
+		{
+			if ((local.team == local.player.dmteam) || (local.team == "both"))
+			{
+				radiusdamage local.player.origin level.vd_playerexplosion_damage level.vd_playerexplosion_radius
+			}
+		}
+	}
+end
+
+
+new_bombmeter local.index local.xpos local.ypos local.team local.bomb:
+	local.ent = spawn Listener
+	local.ent.xpos = local.xpos
+	local.ent.ypos = local.ypos
+	local.ent.team = local.team
+	local.ent.sizex = 16
+	local.ent.sizey = 70
+	local.ent.bomb = local.bomb
+end local.ent
+
+
+bombmeter_setup local.idx local.meter:
+	local.iconsize = 20
+
+	huddraw_shader local.idx textures/hud/healthback
+	huddraw_align local.idx left bottom
+	huddraw_rect  local.idx local.meter.xpos local.meter.ypos local.meter.sizex local.meter.sizey
+	huddraw_color local.idx 1.0 1.0 1.0
+	huddraw_alpha local.idx 1.0
+
+	huddraw_align (local.idx + 1) left bottom
+	huddraw_color (local.idx + 1) 1.0 1.0 1.0
+	huddraw_alpha (local.idx + 1) 1.0
+
+	huddraw_shader (local.idx + 2) ("textures/hud/" + local.meter.team)
+	huddraw_align (local.idx + 2) left bottom
+	huddraw_rect  (local.idx + 2) (local.meter.xpos + ((local.meter.sizex - local.iconsize) * 0.5)) (local.meter.ypos + local.meter.sizey + (local.iconsize * 0.1)) local.iconsize local.iconsize
+	huddraw_color (local.idx + 2) 1.0 1.0 1.0
+	huddraw_alpha (local.idx + 2) 1.0
+end
+
+
+bombmeter_update local.idx local.meter:
+	huddraw_rect (local.idx + 1) local.meter.xpos (local.meter.ypos + ((1.0 - local.meter.bomb.timeleft) * local.meter.sizey)) local.meter.sizex (local.meter.bomb.timeleft * local.meter.sizey)
+	if (local.meter.bomb.bomb_set)
+	{
+		huddraw_shader (local.idx + 1) textures/hud/healthmeterflash
+	} else
+	{
+		huddraw_shader (local.idx + 1) textures/hud/healthmeter
+	}
+end
+
+
+setup_bombmeter_display:
+	waitthread bombmeter_setup self.idx level.vd_bombs["allies"].meter
+	waitthread bombmeter_setup (self.idx + 3) level.vd_bombs["axis"].meter
+end
+
+
+update_bombmeter_display:
+	waitthread bombmeter_update self.idx level.vd_bombs["allies"].meter
+	waitthread bombmeter_update (self.idx + 3) level.vd_bombs["axis"].meter
+end
+
+
+check_bomb_status local.updatefreq:
+	local.nexttick = level.time + local.updatefreq
+	while (1)
+	{
+		if (level.time > local.nexttick || local.alliedset != level.vd_bombs["allies"].bomb_set || local.axisset != level.vd_bombs["axis"].bomb_set)
+		{
+			local.nexttick = level.time + local.updatefreq
+			local.alliedset = level.vd_bombs["allies"].bomb_set
+			local.axisset = level.vd_bombs["axis"].bomb_set
+			level.mef_updatehud = 1
+		}
+		
+		waitframe
+	}
+end

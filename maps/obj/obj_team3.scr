@@ -1,0 +1,486 @@
+// OMAHA BEACH OBJECTIVE DM
+// BY ADAM "SENN" BELLEFEUIL
+
+// **********************************************************************
+// Extended-Gametype Mapscript Version 1.0 (06-02-04)
+// By Mark Follett (Mefy)
+// email: mef123@geocities.com
+// web: www.planetmedalofhonor.com/mefy
+// You are free to modify and redistribute as long as you keep these
+// credits.
+// **********************************************************************
+
+main:
+	setcvar "g_obj_alliedtext1" "Omaha Beach"
+	setcvar "g_obj_alliedtext2" ""
+	setcvar "g_obj_alliedtext3" ""
+	setcvar "g_obj_axistext1" ""
+	setcvar "g_obj_axistext2" ""
+	setcvar "g_obj_axistext3" ""
+
+	setcvar "g_scoreboardpic" "objdm5"
+
+	level.mef_mapname = "obj_team3"
+	level.mef_maptype = "obj"
+	level.mef_supportedgametypes = "ffa"::"tdm"::"rbm"::"obj"::"ft"::"ctf"::"ftobj"
+	level.mef_defaultgametype = "ftobj"
+
+	switch (waitthread global/libmef/util.scr::get_gametype)
+	{
+		case "ctf":
+			local.alliedbases[0] = "-1334 -2534 -232.16 -90" // left
+			local.alliedbases[1] = "943 -2540 -275.42 -90" // center
+			local.alliedbases[2] = "2578 -2529 -209.46 -90" // right
+
+			local.axisbases[0] = "-602 241 341.14 -90" // left
+			local.axisbases[1] = "167 316 314.52 -90" // center
+			local.axisbases[2] = "1071 290 298.99 -90" // right
+
+			level.ctf_settings["alliedbase"] = local.alliedbases[(randomint(local.alliedbases.size))]
+			level.ctf_settings["axisbase"] = local.axisbases[(randomint(local.axisbases.size))]
+			thread global/libmef/ctf.scr::ctf_begin
+			break
+
+		case "ft":
+			thread global/libmef/ft.scr::ft_begin
+			break
+
+		case "ftobj":
+			thread global/libmef/ft.scr::ft_begin
+			thread objectivethread
+			break
+
+		case "rbm":
+			thread roundbasedthread
+			break
+
+		case "obj":
+			thread objectivethread
+			break
+	}
+
+	if (level.mef_gametype != "obj" && level.mef_gametype != "ftobj")
+	{
+		// remove the bombs in a non-objective game
+		$88mm_trigger1 remove
+		$88mm_explosive1 remove
+		$88mm_trigger2 remove
+		$88mm_explosive2 remove
+
+		$bangalore_left remove
+		$bangalore_nopulse_left remove
+		$barbwire_clip_left remove
+		$barbwire_collision_left remove
+		$barbwire_left remove
+
+		$bangalore_center remove
+		$bangalore_nopulse_center remove
+		$barbwire_clip_center remove
+		$barbwire_collision_center remove
+		$barbwire_center remove
+
+		$bangalore_right remove
+		$bangalore_nopulse_right remove
+		$barbwire_clip_right remove
+		$barbwire_collision_right remove
+		$barbwire_right remove
+
+		$spawn_axis1 enablespawn // cliff edge and bunker
+		$spawn_axis2 enablespawn // cliff edge, bunker, inside
+		$spawn_axis3 enablespawn // west cannon
+		$spawn_axis4 enablespawn // east cannon
+
+		$spawn_allied1 enablespawn  // shore
+		$spawn_allied2 enablespawn  // wire (protected)
+		$spawn_allied3 enablespawn  // wire (protected)
+	}
+
+	level waittill prespawn
+
+	exec global/DMprecache.scr
+
+	thread global/minefield.scr::minefield_setup
+
+	$world northyaw 270
+
+	$world farplane 7500
+	$world farplane_color (0.675 0.663 0.651)
+
+	level.script = maps/obj/obj_team5.scr
+	exec global/ambient.scr obj_team5
+
+	level waittill spawn
+
+	if (!level.mef_devmode && level.roundbased)
+	{
+		level waittill roundstart
+	}
+
+	if (level.mef_gametype != "ft" && level.mef_gametype != "rbm")
+	{
+		thread random_explode_setup
+	}
+end
+
+
+roundbasedthread:
+
+	// Can specify different scoreboard messages for round based games here.
+
+	level waitTill prespawn
+
+	level waittill spawn
+
+	// set the parameters for this round based match
+	level.dmrespawning = 0 // 1 or 0
+	level.dmroundlimit = 5 // round time limit in minutes
+	level.clockside = kills // set to axis, allies, kills, or draw
+
+	level waittill roundstart
+
+end
+
+
+objectivethread:
+
+	level waittill prespawn
+
+	$spawn_allied2 disablespawn
+	$spawn_allied3 disablespawn
+
+	$spawn_axis3 disablespawn
+	$spawn_axis4 disablespawn
+
+	$bangalore_nopulse_left hide
+	$bangalore_nopulse_center hide
+	$bangalore_nopulse_right hide
+
+	setcvar "g_obj_alliedtext1" "- Breach the shingle" 
+	setcvar "g_obj_alliedtext2" "- Destroy two 15cm"
+	setcvar "g_obj_alliedtext3" "cannons"
+	setcvar "g_obj_axistext1" "- Prevent Allies from"
+	setcvar "g_obj_axistext2" "taking the beach"
+	setcvar "g_obj_axistext3" ""
+
+	level waittill spawn
+
+	level.bomb_damage = 200
+	level.bomb_explosion_radius = 640
+	level.defusing_team = "axis"
+	level.planting_team = "allies"
+	level.targets_to_destroy = 2
+
+	if (level.mef_gametype != "ftobj")
+	{
+		level.dmrespawning = 1 // 1 or 0
+	}
+
+	level.dmroundlimit = 10 // round time limit in minutes
+	level.clockside = axis // set to axis, allies, kills, or draw
+
+	if (!level.mef_devmode)
+	{
+		level waittill roundstart
+	}
+
+	$88mm_explosive1 thread global/libmef/bomb.scr::bomb_thinker
+	$88mm_explosive2 thread global/libmef/bomb.scr::bomb_thinker
+
+	$88mm_explosive1 thread axis_win_timer
+	thread allies_win_bomb
+
+	thread bomb1_exploded $88mm_explosive1
+	thread bomb2_exploded $88mm_explosive2
+
+	thread shingle_setup
+
+end
+
+
+//*** --------------------------------------------
+//*** "Axis Victory"
+//*** --------------------------------------------
+
+axis_win_timer:
+
+	level waittill axiswin
+
+end
+
+//*** --------------------------------------------
+//*** "Allied Victory"
+//*** --------------------------------------------
+
+allies_win_bomb:
+
+	while(level.targets_destroyed < level.targets_to_destroy)
+		waitframe
+	
+	if (level.mef_gametype == "ftobj")
+	{
+		waitthread global/libmef/util.scr::do_teamwin allies
+	} else
+	{
+		teamwin allies
+	}
+end
+
+
+//*** --------------------------------------------
+//*** "Bomb 1 Exploded"
+//*** --------------------------------------------
+
+bomb1_exploded local.bomb1:
+
+	while (local.bomb1.exploded != 1)
+
+		wait .1
+
+		iprintlnbold "Allies have destroyed the Western Cannon!"
+
+		$spawn_axis2 disablespawn
+		$spawn_axis3 enablespawn
+
+end
+
+
+//*** --------------------------------------------
+//*** "Bomb 2 Exploded"
+//*** --------------------------------------------
+
+bomb2_exploded local.bomb2:
+
+	while (local.bomb2.exploded != 1)
+
+		wait .1	
+
+		iprintlnbold "Allies have destroyed the Eastern Cannon!"
+
+		$spawn_axis2 disablespawn
+		$spawn_axis4 enablespawn
+
+end
+
+
+//*** --------------------------------------------
+//*** "Shingle"
+//*** --------------------------------------------
+
+shingle_setup:
+
+	thread shingle_left_start
+	thread shingle_center_start
+	thread shingle_right_start
+
+end
+
+shingle_left_start:
+
+	$bangalore_trigger_left waittill trigger
+
+	local.player = parm.other
+
+	if (local.player.dmteam != axis || (level.ft_running && local.player.ft_pstate != "PSTATE_ALIVE"))
+	{
+		goto shingle_left
+	}
+
+end
+
+shingle_left:
+
+	$bangalore_left playsound plantbomb1
+	$bangalore_left remove
+	$bangalore_nopulse_left show
+
+	wait 8
+	
+	$bangalore_explosion_left1 anim start
+	$bangalore_explosion_left2 anim start
+	radiusdamage $bangalore_explosion_left2.origin 640 384
+	$bangalore_nopulse_left remove
+	$barbwire_clip_left remove
+	$barbwire_collision_left remove
+	$barbwire_left remove
+	$spawn_axis1 disablespawn
+
+end
+
+shingle_center_start:
+
+	$bangalore_trigger_center waittill trigger
+
+	local.player = parm.other
+
+	if (local.player.dmteam != axis || (level.ft_running && local.player.ft_pstate != "PSTATE_ALIVE"))
+	{
+		goto shingle_center
+	}
+
+end
+
+shingle_center:
+
+	$bangalore_center playsound plantbomb1
+	$bangalore_center remove
+	$bangalore_nopulse_center show
+
+	wait 8
+
+	$bangalore_explosion_center1 anim start
+	$bangalore_explosion_center2 anim start
+	radiusdamage $bangalore_nopulse_center.origin 640 384
+	$bangalore_nopulse_center remove
+	$barbwire_clip_center remove
+	$barbwire_collision_center remove
+	$barbwire_center remove
+	$spawn_axis1 disablespawn
+	$spawn_allied1 disablespawn
+	$spawn_allied2 enablespawn
+
+end
+
+shingle_right_start:
+
+	$bangalore_trigger_right waittill trigger
+
+	local.player = parm.other
+
+	if (local.player.dmteam != axis || (level.ft_running && local.player.ft_pstate != "PSTATE_ALIVE"))
+	{
+		goto shingle_right
+	}
+
+end
+
+shingle_right:
+
+	$bangalore_right playsound plantbomb1
+	$bangalore_right remove
+	$bangalore_nopulse_right show
+
+	wait 8
+	
+	$bangalore_explosion_right1 anim start
+	$bangalore_explosion_right2 anim start
+	radiusdamage $bangalore_nopulse_right.origin 640 384
+	$bangalore_nopulse_right remove
+	$barbwire_clip_right remove
+	$barbwire_collision_right remove
+	$barbwire_right remove
+	$spawn_axis1 disablespawn
+	$spawn_axis2 enablespawn
+	$spawn_allied1 disablespawn
+	$spawn_allied3 enablespawn
+
+end
+
+
+//*** --------------------------------------------
+//*** "Random Beach Explosions"
+//*** --------------------------------------------
+
+random_explode_setup:
+
+	thread random_explode1
+	thread random_explode2
+	thread random_explode3
+	thread random_explode4
+	thread random_explode5
+	thread random_explode6
+	thread random_explode7
+
+end
+
+random_explode1:
+
+	wait (randomfloat 13 + 23)
+
+	$random_explode1_origin playsound arty_leadinmp
+
+	wait 1
+
+	$random_explode1 anim start
+	radiusdamage $random_explode1_origin 256 384
+
+	goto random_explode1
+
+random_explode2:
+
+	wait (randomfloat 7 + 20)
+
+	$random_explode2_origin playsound arty_leadinmp
+
+	wait 1
+
+	$random_explode2 anim start
+	radiusdamage $random_explode2_origin 256 384
+
+	goto random_explode2
+
+random_explode3:
+
+	wait (randomfloat 9 + 18)
+
+	$random_explode3_origin playsound arty_leadinmp
+
+	wait 1
+
+	$random_explode3 anim start
+	radiusdamage $random_explode3_origin 256 384
+
+	goto random_explode3
+
+random_explode4:
+
+	wait (randomfloat 12 + 18)
+
+	$random_explode4_origin playsound arty_leadinmp
+
+	wait 1
+
+	$random_explode4 anim start
+	radiusdamage $random_explode4_origin 256 384
+
+	goto random_explode4
+
+random_explode5:
+
+	wait (randomfloat 15 + 22)
+
+	$random_explode5_origin playsound arty_leadinmp
+
+	wait 1
+
+	$random_explode5 anim start
+	radiusdamage $random_explode5_origin 256 384
+
+	goto random_explode5
+
+random_explode6:
+
+	wait (randomfloat 8 + 15)
+
+	$random_explode6_origin playsound arty_leadinmp
+
+	wait 1
+
+	$random_explode6 anim start
+	radiusdamage $random_explode6_origin 256 384
+
+	goto random_explode6
+
+random_explode7:
+
+	wait (randomfloat 10 + 24)
+
+	$random_explode7_origin playsound arty_leadinmp
+
+	wait 1
+
+	$random_explode7 anim start
+	radiusdamage $random_explode7_origin 256 384
+
+	goto random_explode7
+
+end

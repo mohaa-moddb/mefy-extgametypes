@@ -1,0 +1,902 @@
+/*
+================================================================================
+Utility Library
+for Medal Of Honor: Allied Assault
+Version 1.2 (06/02/04)
+
+Copyright (c) 2003-2004 Mark Follett
+email: mef123@geocities.com
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is furnished
+to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+================================================================================
+*/
+
+
+init_util_lib:
+	level.mef_devmode = bool (getcvar "g_mef_devmode")
+	waitthread get_version_info
+	waitthread check_new_map
+	thread hud_thread
+end
+
+
+get_version_info:
+	local.gameversions[0] = "aademo"::"Medal of Honor Allied Assault 1.00 win-x86 Dec 12 2001"::"aa"
+	local.gameversions[1] = "shdemo"::"Medal of Honor Spearhead Demo"::"sh"
+	local.gameversions[2] = "btdemo"::"Medal of Honor: Breakthrough Demo"::"bt"
+	local.gameversions[3] = "aa"::"Medal of Honor Allied Assault"::"aa"
+	local.gameversions[4] = "sh"::"Medal of Honor Spearhead"::"sh"
+	local.gameversions[5] = "bt"::"Medal of Honor: Breakthrough"::"bt"
+
+	local.verinfo = waitthread parse_game_version local.gameversions (getcvar "version")
+	level.mef_gameversion = local.verinfo[1]
+	level.mef_versionnum = local.verinfo[2]
+	level.mef_baseversion = local.verinfo[3]
+
+	for (local.i = 0; local.i < local.gameversions.size; local.i++)
+	{
+		level.mef_versettings[local.gameversions[local.i][1]] = local createListener
+	}
+end
+
+
+check_new_map:
+	local.mapname = getcvar "mapname"
+	local.lastmap = getcvar "g_mef_lastmap"
+	
+	if (local.mapname != local.lastmap)
+	{
+		setcvar "g_mef_lastmap" local.mapname
+		level.mef_newmap = 1
+	}
+end
+
+
+get_gametype:
+	waitthread init_util_lib
+
+	local.basegtypes[1] = "ffa"::"Free-For-All"
+	local.basegtypes[2] = "tdm"::"Team-Match"
+	local.basegtypes[3] = "rbm"::"Round-Based-Match"
+	local.basegtypes[4] = "obj"::"Objective-Match"
+
+	if (level.mef_baseversion == "sh" || level.mef_baseversion == "bt")
+	{
+		local.basegtypes[5] = "tow"::"Tug-of-War"
+	}
+	
+	if (level.mef_baseversion == "bt")
+	{
+		local.basegtypes[6] = "lib"::"Liberation"
+	}
+	
+	for (local.i = 1; local.i < (local.basegtypes.size + 1); local.i++)
+	{
+		local.gametypes[local.basegtypes[local.i][1]] = (local.basegtypes[local.i][2])::0::(local.i)
+	}
+
+	local.gametypes["ctf"] = "Capture-The-Flag"::1
+	local.gametypes["ft"] = "Freeze-Tag"::1
+	local.gametypes["vd"] = "Voodoo-Dolls"::1
+	local.gametypes["ftobj"] = "Freeze-Tag-Objective"::1
+
+
+	local.gtype = getcvar "g_extgametype"
+	if (!(waitthread is_valid_gametype local.gtype))
+	{
+		local.gtype = getcvar ("g_extgametype_" + level.mef_mapname)
+	}
+
+	if (!(waitthread is_valid_gametype local.gtype))
+	{
+		local.gtypenum = int(getcvar "g_gametype")
+
+		if ((level.mef_maptype == "dm" && local.gtypenum == 3) || \
+		    (level.mef_maptype == "obj" && (local.gtypenum == 3 || local.gtypenum == 4)))
+		{
+			local.gtype = level.mef_defaultgametype
+		}
+	}
+
+	if (!(waitthread is_valid_gametype local.gtype))
+	{
+		local.gtype = "none"
+	}
+
+	local.gametype = local.gametypes[local.gtype]
+	if (local.gametype != NIL)
+	{
+		if (local.gametype[2])
+		{
+			// check to see if the extended gametype is enabled
+			level.mef_settings[0] = NIL
+			level.mef_settingsprefix = local.gtype
+
+			if (!(waitthread check_game_enabled))
+			{
+				local.gtype = "none"
+				if (level.mef_maptype == "dm")
+				{
+					setcvar "g_gametype" "3"
+				} else
+				{
+					setcvar "g_gametype" "4"
+				}
+			}
+		} else
+		{
+			setcvar "g_gametype" local.gametype[3]
+		}
+	}
+
+	// if no gametype was selected, determine which one it is from the g_gametype cvar
+	if (local.gtype == "none")
+	{
+		local.gtypenum = int(getcvar "g_gametype")
+		if (local.basegtypes[local.gtypenum] != NIL)
+		{
+			local.gtype = local.basegtypes[local.gtypenum][1]
+		}
+	}
+
+	// set the gametype string for the selected gametype
+	if (local.gametypes[local.gtype] != NIL)
+	{
+		setcvar "g_gametypestring" local.gametypes[local.gtype][1]
+	}
+
+	level.mef_gametype = local.gtype
+end local.gtype
+
+
+is_valid_gametype local.gtype:
+	for (local.i = 1; local.i < (level.mef_supportedgametypes.size + 1); local.i++)
+	{
+		if (local.gtype == level.mef_supportedgametypes[local.i])
+		{
+			end 1
+		}
+	}
+end 0
+
+
+parse_game_version local.gameversions local.verstring:
+	for (local.i = 0; local.i < local.gameversions.size; local.i++)
+	{
+		local.version = local.gameversions[local.i]
+
+		local.match = 1
+		for (local.j = 0; local.j < local.version[2].size; local.j++)
+		{
+			if (local.j >= local.verstring.size || local.version[2][local.j] != local.verstring[local.j])
+			{
+				local.match = 0
+				break
+			}
+		}
+
+		if (local.match)
+		{
+			local.selversion = local.version
+			break
+		}
+	}
+
+	if (local.selversion != NIL)
+	{
+		local.vernum = ""
+		for (local.j = local.selversion[2].size; (local.j < local.verstring.size && local.verstring[local.j] == " "); local.j++) {}
+		for (; (local.j < local.verstring.size && local.verstring[local.j] != " "); local.j++)
+		{
+			local.vernum += local.verstring[local.j]
+		}
+
+		end local.selversion[1]::local.vernum::local.selversion[3]
+	} else
+	{
+		end "aa"::"1.11"::"aa"
+	}
+end
+
+
+split_string local.str local.sep:
+	local.result[0] = NIL
+	local.nextitem = ""
+
+	for (local.i = 0; local.i < local.str.size; local.i++)
+	{
+		local.char = local.str[local.i]
+
+		if (local.char == local.sep)
+		{
+			if (local.nextitem != "")
+			{
+				local.result[local.result.size] = local.nextitem
+				local.nextitem = ""
+			}
+		} else
+		{
+			local.nextitem += local.char
+		}
+	}
+
+	if (local.nextitem != "")
+	{
+		local.result[local.result.size] = local.nextitem
+	}
+end local.result
+
+
+join_string local.strlist local.sep:
+	local.result = ""
+	for (local.i = 0; local.i < local.strlist.size; local.i++)
+	{
+		if (local.i != 0)
+		{
+			local.result += local.sep
+		}
+		local.result += local.strlist[local.i]
+	}
+end local.result
+
+
+parse_options local.str:
+	local.keys[0] = NIL
+	local.keyname = ""
+	local.keylist[0] = NIL
+	local.strlist = waitthread split_string local.str " "
+	for (local.i = 0; local.i < local.strlist.size; local.i++)
+	{
+		local.item = local.strlist[local.i]
+		if ((local.item.size > 1) && (local.item[(local.item.size - 1)] == ":"))
+		{
+			local.keyname = ""
+			for (local.j = 0; local.j < (local.item.size - 1); local.j++)
+			{
+				local.keyname += local.item[local.j]
+			}
+			
+			if (local.keys[local.keyname] == NIL)
+			{
+				local.keylist[local.keylist.size] = local.keyname
+			}
+			
+			local.keys[local.keyname] = NIL
+		} else
+		{
+			if (local.keyname != "")
+			{
+				if (local.keys[local.keyname] != NIL)
+				{
+					local.keys[local.keyname] += " "
+				} else
+				{
+					local.keys[local.keyname] = ""
+				}
+				local.keys[local.keyname] += (" " + local.item)
+			}
+		}
+	}
+end (local.keys::local.keylist)
+
+
+// Game Settings
+
+read_setting local.name local.type local.mapdefval local.defaultval:
+	local.gencvarname = ("g_" + level.mef_settingsprefix + "_" + local.name)
+
+	local.gencvarval = getcvar local.gencvarname
+	local.scrval = level.mef_settings[local.name]
+
+	if (local.mapdefval != NIL)
+	{
+		local.cvarval = waitthread cast_val local.mapdefval local.type
+	} else if (local.gencvarval != "")
+	{
+		local.cvarval = waitthread cast_val local.gencvarval local.type
+	} else if (local.scrval != NIL)
+	{
+		local.cvarval = local.scrval
+	} else
+	{
+		local.cvarval = local.defaultval
+	}
+
+	level.mef_settings[local.name] = local.cvarval
+end
+
+
+// name::type::default value
+read_game_settings local.settingsdef:
+	local.mapcvarname = ("g_" + level.mef_settingsprefix + "_" + level.mef_mapname + "_settings")
+	local.mapvals = (waitthread parse_options (getcvar local.mapcvarname))[1]
+
+	for (local.i = 0; local.i < local.settingsdef.size; local.i++)
+	{
+		local.setting = local.settingsdef[local.i]
+		waitthread read_setting local.setting[1] local.setting[2] local.mapvals[local.setting[1]] local.setting[3]
+	}
+	
+	local.currentcvarname = ("g_" + level.mef_settingsprefix + "_currentsettings")
+	setcvar local.currentcvarname (waitthread dump_game_settings local.settingsdef)
+end
+
+
+check_game_enabled:
+	local.mapcvarname = ("g_" + level.mef_settingsprefix + "_" + level.mef_mapname + "_settings")
+	local.mapvals = (waitthread parse_options (getcvar local.mapcvarname))[1]
+	waitthread read_setting "disable" bool local.mapvals["disable"] 0
+end (!level.mef_settings["disable"])
+
+
+dump_game_settings local.settingsdef:
+	local.str = ""
+	
+	for (local.i = 0; local.i < local.settingsdef.size; local.i++)
+	{
+		local.setting = local.settingsdef[local.i]
+
+		if (local.i != 0)
+		{
+			local.str += " "
+		}
+		local.str += (local.setting[1] + ": " + level.mef_settings[local.setting[1]])
+	}
+end local.str
+
+
+cast_val local.val local.type:
+	switch (local.type)
+	{
+		bool:
+			local.result = bool(local.val)
+			break
+		int:
+			local.result = int(local.val)
+			break
+		float:
+			local.result = float(local.val)
+			break
+		string:
+			local.result = string(local.val)
+			break
+		default:
+			local.result = local.val
+			break
+	}
+end local.result
+
+
+read_options local.str local.setting local.options:
+	local.strlist = waitthread split_string local.str " "
+	for (local.i = 0; local.i < local.strlist.size; local.i++)
+	{
+		local.val = local.strlist[local.i]
+		
+		for (local.j = 1; local.j < (local.options.size + 1); local.j++)
+		{
+			if (local.val == local.options[local.j])
+			{
+				level.mef_settings[(local.setting + "_" + local.val)] = 1
+				break
+			}
+		}
+	}
+end
+
+
+read_position_string local.str:
+	local.strlist = waitthread split_string local.str " "
+	for (local.i = 0; local.i < 4; local.i++)
+	{
+		if (local.strlist[local.i] == NIL)
+		{
+			local.strlist[local.i] = 0.0
+		} else
+		{
+			local.strlist[local.i] = (float(local.strlist[local.i]))
+		}
+	}
+	
+	local.poslist[0] = NIL
+	for (local.i = 4; local.i < local.strlist.size; local.i++)
+	{
+		local.poslist[local.poslist.size] = local.strlist[local.i]
+	}
+	
+	local.ent = local createListener
+	local.ent.origin = ( (float(local.strlist[0])) (float(local.strlist[1])) (float(local.strlist[2]) ) )
+	local.ent.angles = ( 0 (float(local.strlist[3])) 0 )
+	local.ent.desc = waitthread join_string local.poslist " "
+end local.ent
+
+
+is_in_array local.array local.item:
+	for (local.i = 0; local.i < local.array.size; local.i++)
+	{
+		if (local.array[local.i] == local.item)
+		{
+			end 1
+		}
+	}
+end 0
+
+
+// Round Based Scoring System
+
+
+begin_round_based_game local.resetthread local.teamwinthread:
+	level.mef_rbdata = spawn script_origin
+	level.mef_rbdata.origin = ( 0 0 0 )
+	level.mef_rbdata.resetthread = local.resetthread
+	level.mef_rbdata.teamwinthread = local.teamwinthread
+
+	level.mef_score["allies"] = 0
+	level.mef_score["axis"] = 0
+
+	waitthread register_hud_item 1 setup_score_display update_score_display
+
+	if (level.mef_rbdata.resetthread)
+	{
+		waitthread level.mef_rbdata.resetthread
+	}
+
+	waitthread turn_off_clock
+	thread check_time
+end
+
+
+turn_off_clock:
+	level.clockside = "draw"
+	level.defusing_team = "axis"
+	level.planting_team = "allies"
+	level.bombs_planted = 1
+	level.bomb_set = 1
+end
+
+
+turn_on_clock local.clockside:
+	level.clockside = local.clockside
+	level.bombs_planted = 0
+	level.bomb_set = 0
+end
+
+
+check_time:
+	local.starttime = level.time
+
+	while (1)
+	{
+		wait 1
+		local.elapsedtime = level.time - local.starttime
+
+		if (local.elapsedtime >= ((level.dmroundlimit * 60) - 2) && !level.mef_scoring["allies"] && !level.mef_scoring["axis"] && !level.mef_gameover)
+		{
+			level.mef_timeexpired = 1
+
+			if (waitthread check_win allies)
+			{
+				waitthread do_teamwin allies
+			} else if (waitthread check_win axis)
+			{
+				waitthread do_teamwin axis
+			} else if (level.mef_settings["suddendeath"] > 0)
+			{
+				thread sudden_death level.mef_settings["suddendeath"]
+			} else if (level.mef_settings["fsuddendeath"] > 0)
+			{
+				thread final_sudden_death level.mef_settings["fsuddendeath"]
+			} else
+			{
+				waitthread do_teamwin draw
+			}
+			end
+		}
+	}
+end
+
+
+sudden_death local.mins:
+	level.mef_suddendeath = 1
+	iprintlnbold_noloc (local.mins + " Minute Sudden Death: Next score wins the round.")
+	level.mef_updatehud = 1
+
+	local.endtime = level.time + (local.mins * 60)
+	while (1)
+	{
+		wait 1
+		if (level.time >= local.endtime && !level.mef_scoring["allies"] && !level.mef_scoring["axis"] && !level.mef_gameover)
+		{
+			if (waitthread check_win allies)
+			{
+				waitthread do_teamwin allies
+			} else if (waitthread check_win axis)
+			{
+				waitthread do_teamwin axis
+			} else if (level.mef_settings["fsuddendeath"] > 0)
+			{
+				thread final_sudden_death level.mef_settings["fsuddendeath"]
+			} else
+			{
+				waitthread do_teamwin draw
+			}
+			end
+		}
+	}
+end
+
+
+final_sudden_death local.mins:
+	level.mef_suddendeath = 1
+	iprintlnbold_noloc (local.mins + " Minute Final Sudden Death: Respawning disabled.")
+	level.mef_updatehud = 1
+
+	level.dmrespawning = 0
+	if (level.mef_basegametype == 4)
+	{
+		thread check_players_dead 5
+	}
+
+	local.endtime = level.time + (local.mins * 60)
+	while (1)
+	{
+		wait 1
+		if (level.time >= local.endtime && !level.mef_scoring["allies"] && !level.mef_scoring["axis"] && !level.mef_gameover)
+		{
+			if (waitthread check_win allies)
+			{
+				waitthread do_teamwin allies
+			} else if (waitthread check_win axis)
+			{
+				waitthread do_teamwin axis
+			} else
+			{
+				waitthread do_teamwin draw
+			}
+			end
+		}
+	}
+end
+
+
+check_players_dead local.delay:
+	while (!level.mef_gameover)
+	{
+		setcvar "g_gametype" "3"
+		waitframe
+		setcvar "g_gametype" "4"
+		wait local.delay
+	}
+end
+
+
+team_scored local.team:
+	if (level.mef_gameover)
+	{
+		end
+	}
+
+	level.mef_score[local.team]++
+	level.mef_scoring[local.team] = NIL
+	level.mef_updatehud = 1
+
+	local.otherteam = waitthread get_other_team local.team
+
+	if ((waitthread check_win local.team) && ((level.mef_suddendeath == 1) || !level.mef_scoring[local.otherteam]))
+	{
+		waitthread do_teamwin local.team
+		end 1
+	}
+
+	if (local.team == "allies")
+	{
+		local.str = "Allies score!"
+		level.mef_rbdata playsound ("dfr_victory_v0" + string(randomint(3) + 1))
+	} else
+	{
+		local.str = "Axis scores!"
+		level.mef_rbdata playsound ("den_victory_v0" + string(randomint(3) + 1))
+	}
+
+	thread global/message_print.scr::message local.str
+
+	if (level.mef_scoring[local.otherteam])
+	{
+		thread check_win_later local.team
+	}
+
+	if (level.mef_rbdata.resetthread)
+	{
+		waitthread level.mef_rbdata.resetthread
+	}
+
+	end 0
+end
+
+
+check_win_later local.team:
+	local.otherteam = waitthread get_other_team local.team
+
+	while (level.mef_scoring[local.otherteam])
+	{
+		waitframe
+	}
+
+	if ((waitthread check_win local.team))
+	{
+		waitthread do_teamwin local.team
+	}
+end
+
+
+check_win local.team:
+	local.otherteam = waitthread get_other_team local.team
+
+	if ((level.mef_score[local.team] > level.mef_score[local.otherteam]) && \
+	    (level.mef_timeexpired == 1 || \
+	    (level.mef_settings["pointlimit"] > 0) && (level.mef_score[local.team] >= level.mef_settings["pointlimit"])))
+	{
+		end 1
+	}
+end 0
+
+
+get_other_team local.team:
+	if (local.team == "both")
+	{
+		end "both"
+	} else if (local.team == "allies")
+	{
+		end "axis"
+	} else
+	{
+		end "allies"
+	}
+end
+
+
+parse_clockside local.clockside:
+	switch (local.clockside)
+	{
+		case 255:
+		case "allies":
+			end "allies"
+			break
+			
+		case 256:
+		case "axis":
+			end "axis"
+			break
+		
+		case 257:
+		case "draw":
+			end "draw"
+			break
+		
+		case 258:
+		case "kills":
+			end "kills"
+			break
+			
+		default:
+			end "draw"
+			break
+	}
+end
+			
+		
+do_teamwin local.team:
+	level.mef_gameover = 1
+
+	waitthread display_credits level.mef_credits
+
+	if (level.mef_rbdata != NIL && level.mef_rbdata.teamwinthread != NIL)
+	{
+		waitthread level.mef_rbdata.teamwinthread local.team
+	}
+
+	if (level.mef_basegametype != 4)
+	{
+		setcvar "g_gametype" "4"  // Objective Match
+	}
+
+	if (local.team == "allies" || local.team == "axis")
+	{
+		teamwin local.team
+	} else
+	{
+		// draw
+		local.manager = spawn DM_Manager
+		local.manager doroundtransition
+	}
+
+	setcvar "g_gametype" level.mef_basegametype
+	wait 2
+
+	// turn off the center message
+	thread global/message_print.scr::message ""
+	huddraw_alpha 26 0
+	huddraw_alpha 27 0
+	level.mef_hidehud = 1
+end
+
+
+display_credits local.credits:
+	if (local.credits == NIL)
+	{
+		end
+	}
+
+	for (local.i = 0; local.i < 6; local.i++)
+	{
+		if (local.credits[local.i] == NIL)
+		{
+			local.credits[local.i] = ""
+		}
+	}
+
+	setcvar "g_obj_alliedtext1" local.credits[0]
+	setcvar "g_obj_alliedtext2" local.credits[1]
+	setcvar "g_obj_alliedtext3" local.credits[2]
+	setcvar "g_obj_axistext1"   local.credits[3]
+	setcvar "g_obj_axistext2"   local.credits[4]
+	setcvar "g_obj_axistext3"   local.credits[5]
+end
+
+
+setup_score_display:
+	local.coordx = -163
+	local.coordy = 70
+
+	huddraw_align  self.idx right top
+	huddraw_font   self.idx facfont-20
+	huddraw_rect   self.idx (local.coordx + 30) local.coordy 100 100
+	huddraw_color  self.idx 1.0 1.0 1.0
+	huddraw_alpha  self.idx 1.0
+end
+
+
+update_score_display:
+	local.str = "Allies: " + level.mef_score["allies"] + " Axis: " + level.mef_score["axis"]
+
+	if (level.mef_suddendeath == 1)
+	{
+		local.str += " [SD]"
+	} else if (level.mef_settings["pointlimit"] > 0)
+	{
+		local.str += " [" + level.mef_settings["pointlimit"] + "]"
+	}
+
+	huddraw_string self.idx local.str
+end
+
+
+
+// HUD Updating
+
+register_hud_item local.numids local.setupthread local.updatethread local.hidethread:
+	local.ent = spawn Listener
+	local.ent.idx = level.mef_nexthudid
+	local.ent.numids = local.numids
+	local.ent.setupthread = local.setupthread
+	local.ent.updatethread = local.updatethread
+	local.ent.hidethread = local.hidethread
+
+	level.mef_huditems[level.mef_huditems.size] = local.ent
+	level.mef_nexthudid += local.numids
+	level.mef_setuphud = 1
+	level.mef_updatehudall = 1
+end local.ent
+
+
+hide_hud_item:
+	for (local.i = self.idx; local.i < (self.idx + self.numids); local.i++)
+	{
+		huddraw_alpha local.i 0.0
+	}
+end
+
+
+hud_thread:
+	level.mef_huditems[0] = NIL
+	level.mef_nexthudid = 50
+	local.maxhuditems = 10
+
+	level waittill prespawn
+	level waittill spawn
+	
+	wait 1
+
+	for (local.i = level.mef_nexthudid; local.i < (level.mef_nexthudid + local.maxhuditems); local.i++)
+	{
+		huddraw_alpha local.i 0
+	}
+
+	// turn off the center message from a previous round
+	huddraw_alpha 26 0
+	huddraw_alpha 27 0
+
+	thread check_new_players 3
+
+	while (1)
+	{
+		if (level.mef_setuphud)
+		{
+			for (local.i = 0; local.i < level.mef_huditems.size; local.i++)
+			{
+				local.huditem = level.mef_huditems[local.i]
+				local.huditem waitthread local.huditem.setupthread
+			}
+			level.mef_setuphud = 0
+		}
+		if (level.mef_updatehud || level.mef_updatehudall)
+		{
+			for (local.i = 0; local.i < level.mef_huditems.size; local.i++)
+			{
+				local.huditem = level.mef_huditems[local.i]
+				local.huditem waitthread local.huditem.updatethread
+				local.huditem.keys = NIL
+			}
+			level.mef_updatehud = 0
+			level.mef_updatehudall = 0
+		}
+		if (level.mef_hidehud)
+		{
+			for (local.i = 0; local.i < level.mef_huditems.size; local.i++)
+			{
+				local.huditem = level.mef_huditems[local.i]
+				if (local.huditem.hidethread != NIL)
+				{
+					local.huditem waitthread local.huditem.hidethread
+				} else
+				{
+					local.huditem waitthread hide_hud_item
+				}
+			}
+			level.mef_hidehud = 0
+		}
+		waitframe
+	}
+end
+
+
+check_new_players local.freq:
+	while (1)
+	{
+		local.setuphud = 0
+		for (local.i = 1; local.i < ($player.size + 1); local.i++)
+		{
+			local.player = $player[local.i]
+			if (local.player != NIL && local.player != NULL && local.player.mef_joinedgame == NIL)
+			{
+				local.player.mef_joinedgame = 1
+				local.setuphud = 1
+			}
+		}
+
+		if (local.setuphud)
+		{
+			wait 1
+			level.mef_setuphud = 1
+			level.mef_updatehudall = 1
+		}
+
+		wait local.freq
+	}
+end

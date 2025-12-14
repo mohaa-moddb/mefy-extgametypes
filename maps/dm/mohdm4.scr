@@ -1,0 +1,104 @@
+// THE BRIDGE
+// ARCHITECTURE: POWZER
+// SCRIPTING: POWZER
+
+// **********************************************************************
+// Extended-Gametype Mapscript Version 1.0 (06-02-04)
+// By Mark Follett (Mefy)
+// email: mef123@geocities.com
+// web: www.planetmedalofhonor.com/mefy
+// You are free to modify and redistribute as long as you keep these
+// credits.
+// **********************************************************************
+
+main:
+
+// set scoreboard messages
+setcvar "g_obj_alliedtext1" "The Crossroads"
+setcvar "g_obj_alliedtext2" ""
+setcvar "g_obj_alliedtext3" ""
+setcvar "g_obj_axistext1" ""
+setcvar "g_obj_axistext2" ""
+setcvar "g_obj_axistext3" ""
+
+setcvar "g_scoreboardpic" "mohdm4"
+
+	level.mef_mapname = "mohdm4"
+	level.mef_maptype = "dm"
+	level.mef_supportedgametypes = "ffa"::"tdm"::"rbm"::"ft"::"ctf"
+	level.mef_defaultgametype = "ft"
+
+	switch (waitthread global/libmef/util.scr::get_gametype)
+	{
+		case "ctf":
+        		// Swap the base positions each round
+			if (int(getcvar "g_ctf_lastbase") == 1)
+			{
+				level.ctf_settings["alliedbase"] = "0 128 16.13 -90" // under bridge
+				level.ctf_settings["axisbase"] = "-256 3597 248.13 0" // chartreux
+				local.alliedregion = 1
+				setcvar "g_ctf_lastbase" "0"
+			} else
+			{
+				level.ctf_settings["axisbase"] = "0 128 16.13 -90" // under bridge
+				level.ctf_settings["alliedbase"] = "-256 3597 248.13 0" // chartreux
+				local.alliedregion = 2
+				setcvar "g_ctf_lastbase" "1"
+			}
+			thread global/libmef/spawn.scr::spawnblock_thread local.alliedregion
+			thread global/libmef/ctf.scr::ctf_begin
+			break
+
+		case "ft":
+			if (int(getcvar "g_ctf_lastbase") == 1)
+			{
+				local.alliedregion = 1
+				setcvar "g_ctf_lastbase" "0"
+			} else
+			{
+				local.alliedregion = 2
+				setcvar "g_ctf_lastbase" "1"
+			}
+		
+			thread global/libmef/spawn.scr::spawnblock_thread local.alliedregion
+			thread global/libmef/ft.scr::ft_begin
+			break
+
+		case "rbm":
+			thread roundbasedthread
+			break
+	}
+
+	level waittill prespawn
+
+	//*** Precache Dm Stuff
+	exec global/DMprecache.scr
+
+	exec global/door_locked.scr::lock
+	level.script = maps/dm/mohdm4.scr
+	exec global/ambient.scr mohdm4
+	
+	thread global/minefield.scr::minefield_setup
+
+	level waittill spawn
+
+end
+
+//-----------------------------------------------------------------------------
+
+roundbasedthread:
+
+	// Can specify different scoreboard messages for round based games here.
+
+	level waitTill prespawn
+
+	level waittill spawn
+
+	// set the parameters for this round based match
+	level.dmrespawning = 0 // 1 or 0
+	level.dmroundlimit = 5 // round time limit in minutes
+	level.clockside = kills // set to axis, allies, kills, or draw
+
+	level waittill roundstart
+
+end
